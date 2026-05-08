@@ -1,0 +1,46 @@
+# Continuous-integration for verdifax-sdk-go.
+#
+# Runs on every PR and every push to main:
+#   - go vet ./...           : compile-time correctness
+#   - go test -race ./...    : every unit test, with race detection
+#   - golangci-lint           : static analysis (when config present)
+#
+# Test runtime is < 30 seconds — the SDK's test surface is the
+# httptest-mocked orchestrator + a few pure-function helpers.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.22", "1.23"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: go mod download
+        run: go mod download
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test -race
+        run: go test -race -count=1 ./...

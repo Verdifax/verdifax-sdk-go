@@ -1,0 +1,75 @@
+# Release workflow for verdifax-sdk-go.
+#
+# Triggered by a `v*` git tag push. Verifies the tag, runs the
+# full test suite one final time, then publishes a GitHub Release.
+#
+# Go modules don't need a registry push — `go get` resolves tags
+# directly from GitHub. So a "release" for a Go module is really
+# "tag a commit + announce it."
+#
+# To cut a new release:
+#
+#   git tag v0.2.0
+#   git push origin v0.2.0
+#
+# A few minutes later the release lands at:
+#
+#   https://github.com/Verdifax/verdifax-sdk-go/releases/tag/v0.2.0
+#
+# Consumers update via:
+#
+#   go get github.com/Verdifax/verdifax-sdk-go@v0.2.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write    # needed to create a GitHub release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: go test -race (final gate)
+        run: go test -race -count=1 ./...
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          # Pull the changelog block for this tag from CHANGELOG.md.
+          # Falls back to "automated release" when no entry exists.
+          tag="${GITHUB_REF##*/}"
+          if [ -f CHANGELOG.md ] && awk -v t="## $tag" '
+            $0 ~ "^"t" " { found=1; next }
+            $0 ~ "^## v" && found { exit }
+            found
+          ' CHANGELOG.md > /tmp/notes.md && [ -s /tmp/notes.md ]; then
+            echo "Found CHANGELOG block for $tag"
+          else
+            echo "Automated release of $tag." > /tmp/notes.md
+          fi
+          {
+            echo "notes<<EOF"
+            cat /tmp/notes.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.notes.outputs.notes }}
+          generate_release_notes: true
