@@ -1,6 +1,6 @@
 package verdifax
 
-// Hex64 is a 64-character lowercase hex string — the canonical §0
+// Hex64 is a 64-character lowercase hex string, the canonical §0
 // SHA-256 encoding. Provided as a type alias so signatures
 // document intent without forcing strict newtypes on callers.
 type Hex64 = string
@@ -60,7 +60,7 @@ type ExecuteRequest struct {
 	AIOutputText string `json:"ai_output_text,omitempty"`
 
 	// AttestedContext carries caller-attested actor + decision
-	// metadata. Schema is open — any JSON-serializable structure
+	// metadata. Schema is open, any JSON-serializable structure
 	// the caller wants surfaced in the audit bundle.
 	AttestedContext map[string]any `json:"attested_context,omitempty"`
 }
@@ -76,7 +76,7 @@ type ExecuteResponse struct {
 
 // ExecutionManifest is the sealed manifest. Every field
 // contributes to the ManifestHash. Subset of the canonical fields
-// — see the orchestrator's internal/pipeline/types.go for the
+//, see the orchestrator's internal/pipeline/types.go for the
 // full struct.
 //
 // Field tags use the Go default (CapitalCamelCase) because that's

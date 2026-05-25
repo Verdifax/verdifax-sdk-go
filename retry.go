@@ -16,14 +16,14 @@ import (
 //
 // Non-idempotent methods (POST, PUT, DELETE) are passed through
 // unchanged. Replaying a POST is rarely safe (most Verdifax POSTs
-// are state-changing — /execute creates a sealed run, /admin/erase
+// are state-changing, /execute creates a sealed run, /admin/erase
 // destroys a DEK), so the SDK refuses to retry them.
 //
 // The retry decision considers:
 //
 //   - Network errors (transport returned a non-nil error)
 //   - HTTP 502 / 503 / 504 (gateway-class transient failures)
-//   - HTTP 429 (rate-limited) — honored alongside the orchestrator's
+//   - HTTP 429 (rate-limited), honored alongside the orchestrator's
 //     rate-limit budget; the SDK retries instead of crashing the
 //     caller's flow
 //

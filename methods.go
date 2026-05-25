@@ -64,7 +64,7 @@ func (c *Client) Execute(ctx context.Context, req *ExecuteRequest) (*ExecuteResp
 // ── Runs ────────────────────────────────────────────────────────
 
 // GetRun fetches a single run by its integer ID. Scoped to the
-// authenticated key — returns *NotFoundError when the run was
+// authenticated key, returns *NotFoundError when the run was
 // created by a different key (defense-in-depth: no enumeration
 // leak).
 func (c *Client) GetRun(ctx context.Context, runID int64) (*Run, error) {

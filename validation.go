@@ -3,7 +3,7 @@ package verdifax
 import "fmt"
 
 // ValidateHex64 returns nil iff value is exactly 64 lowercase hex
-// characters — the §0-canonical SHA-256 encoding the orchestrator
+// characters, the §0-canonical SHA-256 encoding the orchestrator
 // expects for program_id, registry_record_hash, manifest_hash,
 // ciphertext_hash, etc. Mirrors the Python SDK's
 // `validate_hex64()` helper for cross-language parity.

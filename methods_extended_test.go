@@ -129,7 +129,7 @@ func startExtendedMock(t *testing.T) *httptest.Server {
 
 	mux.HandleFunc("GET /runs/{id}/report.pdf", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/pdf")
-		// Minimal PDF magic bytes — enough for the SDK's bytes-out
+		// Minimal PDF magic bytes, enough for the SDK's bytes-out
 		// verification to succeed.
 		_, _ = w.Write([]byte("%PDF-1.7\n% mock for SDK test\n%%EOF\n"))
 	})
@@ -180,7 +180,7 @@ func TestAttest_RejectsBothPayloadVariants(t *testing.T) {
 	}
 }
 
-// 4. Attest happy path — bytes get base64-encoded.
+// 4. Attest happy path, bytes get base64-encoded.
 func TestAttest_HappyPath(t *testing.T) {
 	srv := startExtendedMock(t)
 	c, _ := NewClient(Config{BaseURL: srv.URL, APIKey: "k"})

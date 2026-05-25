@@ -51,18 +51,18 @@ func main() {
         log.Fatal(err)
     }
     if v.Verified {
-        fmt.Println("✓ Manifest hash recomputes — run is intact.")
+        fmt.Println("✓ Manifest hash recomputes, run is intact.")
     }
 }
 ```
 
 ## What this SDK covers
 
-- `Health(ctx)` — `/health`, anonymous liveness probe + git SHA
-- `Version(ctx)` — `/version`, deploy attestation surface
-- `Execute(ctx, req)` — `POST /execute`, the core pipeline-execution flow
-- `GetRun(ctx, id)` — `GET /runs/{id}`, fetch a sealed run
-- `VerifyRun(ctx, id)` — `GET /runs/{id}/verify`, re-derive the seal
+- `Health(ctx)`, `/health`, anonymous liveness probe + git SHA
+- `Version(ctx)`, `/version`, deploy attestation surface
+- `Execute(ctx, req)`, `POST /execute`, the core pipeline-execution flow
+- `GetRun(ctx, id)`, `GET /runs/{id}`, fetch a sealed run
+- `VerifyRun(ctx, id)`, `GET /runs/{id}/verify`, re-derive the seal
 
 The full HTTP surface (every endpoint, deletion-receipt list,
 DCAE verify, admin endpoints) is documented in the
@@ -84,16 +84,16 @@ curl -X POST https://api.verdifax.com/admin/keys \
   -d '{"name": "go-sdk-prod"}'
 ```
 
-The response carries the secret **once** — store it immediately.
+The response carries the secret **once**, store it immediately.
 After that, the orchestrator stores only its hash.
 
 ## Trust model
 
-This SDK only mediates HTTP I/O — it does NOT verify sealed
+This SDK only mediates HTTP I/O, it does NOT verify sealed
 manifests on its own. For offline verification with no Verdifax
 dependency, use the [`verdifax-pepg-verify`](https://github.com/Verdifax/verdifax-orchestrator/tree/main/cmd/verdifax-pepg-verify)
 CLI (signed binary distributed via GitHub Releases).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

@@ -34,7 +34,7 @@ func startMockOrchestrator(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Version{
 			Service:        "verdifax-orchestrator-api",
-			FormulaVersion: "v1.7 (Phase 17 — CRES)",
+			FormulaVersion: "v1.7 (Phase 17, CRES)",
 			KernelVersions: map[string]string{
 				"dse":  "dse.tcu.dispatch.v1",
 				"cres": "verdifax.cres.v1",
@@ -98,7 +98,7 @@ func startMockOrchestrator(t *testing.T) *httptest.Server {
 			Verified:       true,
 			ManifestHash:   "ff" + repeat("bb", 31),
 			RecomputedHash: "ff" + repeat("bb", 31),
-			FormulaVersion: "v1.7 (Phase 17 — CRES)",
+			FormulaVersion: "v1.7 (Phase 17, CRES)",
 		})
 	})
 
@@ -143,7 +143,7 @@ func TestNewClient_NormalizesBaseURL(t *testing.T) {
 	}
 }
 
-// 3. Health round-trip — anonymous endpoint, no auth required.
+// 3. Health round-trip, anonymous endpoint, no auth required.
 func TestHealth_RoundTrip(t *testing.T) {
 	srv := startMockOrchestrator(t)
 	c, _ := NewClient(Config{BaseURL: srv.URL})
@@ -169,15 +169,15 @@ func TestVersion_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Version: %v", err)
 	}
-	if v.FormulaVersion != "v1.7 (Phase 17 — CRES)" {
+	if v.FormulaVersion != "v1.7 (Phase 17, CRES)" {
 		t.Errorf("formula_version = %q", v.FormulaVersion)
 	}
 	if v.KernelVersions["cres"] == "" {
-		t.Error("kernel_versions.cres missing — expected the SDK to pass through every kernel")
+		t.Error("kernel_versions.cres missing, expected the SDK to pass through every kernel")
 	}
 }
 
-// 5. Execute requires APIKey — without one, methods short-circuit
+// 5. Execute requires APIKey, without one, methods short-circuit
 // before any HTTP traffic.
 func TestExecute_RequiresAPIKey(t *testing.T) {
 	c, _ := NewClient(Config{})
@@ -192,7 +192,7 @@ func TestExecute_RequiresAPIKey(t *testing.T) {
 	}
 }
 
-// 6. Execute happy path — auth + payload + sealed response.
+// 6. Execute happy path, auth + payload + sealed response.
 func TestExecute_HappyPath(t *testing.T) {
 	srv := startMockOrchestrator(t)
 	c, _ := NewClient(Config{BaseURL: srv.URL, APIKey: "test-key"})
@@ -221,7 +221,7 @@ func TestExecute_AuthError(t *testing.T) {
 	c, _ := NewClient(Config{BaseURL: srv.URL, APIKey: ""})
 
 	// Bypass the requireAPIKey check by setting a placeholder
-	// — the mock returns 401 because the request won't carry
+	//, the mock returns 401 because the request won't carry
 	// the header.
 	c.apiKey = ""
 	// Manually build a request that skips the SDK's local check.
@@ -267,6 +267,6 @@ func TestVerifyRun_HappyPath(t *testing.T) {
 		t.Errorf("verified = false, want true")
 	}
 	if v.FormulaVersion == "" {
-		t.Error("formula_version missing — SDK should pass it through")
+		t.Error("formula_version missing, SDK should pass it through")
 	}
 }

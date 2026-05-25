@@ -55,7 +55,7 @@
 //
 // # Trust model
 //
-// The SDK only mediates HTTP I/O — it does NOT verify sealed
+// The SDK only mediates HTTP I/O, it does NOT verify sealed
 // manifests on its own. Use the verdifax-pepg-verify CLI (or its
 // Go library form once published) for offline verification.
 package verdifax

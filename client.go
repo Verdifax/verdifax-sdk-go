@@ -20,7 +20,7 @@ const (
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
-	// keys are not OAuth bearer tokens — they're long-lived
+	// keys are not OAuth bearer tokens, they're long-lived
 	// orchestrator-scoped secrets that don't fit OAuth's expiry
 	// semantics.
 	HeaderAPIKey = "X-Verdifax-Key"

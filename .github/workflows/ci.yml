@@ -5,7 +5,7 @@
 #   - go test -race ./...    : every unit test, with race detection
 #   - golangci-lint           : static analysis (when config present)
 #
-# Test runtime is < 30 seconds — the SDK's test surface is the
+# Test runtime is < 30 seconds, the SDK's test surface is the
 # httptest-mocked orchestrator + a few pure-function helpers.
 
 name: CI

@@ -230,7 +230,7 @@ func (c *Client) DownloadAuditPDF(ctx context.Context, runID int64, format PDFFo
 	return err
 }
 
-// ── CRES — deletion receipts ──────────────────────────────────
+// ── CRES, deletion receipts ──────────────────────────────────
 
 // ListDeletionReceipts returns every CRES DeletionReceipt bound to
 // a run, ordered by deletion_clock ascending. Empty slice when the
@@ -256,7 +256,7 @@ func (c *Client) ListDeletionReceipts(ctx context.Context, runID int64) ([]Delet
 
 // AdminEraseRequest is the body shape for AdminErase. CiphertextHash
 // is the SHA-256 hex of the ciphertext that was sealed for the field
-// at encryption time — the caller looks this up in their own records.
+// at encryption time, the caller looks this up in their own records.
 type AdminEraseRequest struct {
 	RunID          int64  `json:"run_id"`
 	FieldPath      string `json:"field_path"`
@@ -322,7 +322,7 @@ type AdminCreateKeyResponse struct {
 }
 
 // AdminCreateKey provisions a new API key with the given name.
-// Returns the secret exactly once — store it immediately.
+// Returns the secret exactly once, store it immediately.
 func (c *Client) AdminCreateKey(ctx context.Context, name string) (*AdminCreateKeyResponse, error) {
 	if err := c.requireAPIKey(); err != nil {
 		return nil, err
@@ -339,7 +339,7 @@ func (c *Client) AdminCreateKey(ctx context.Context, name string) (*AdminCreateK
 }
 
 // AdminAPIKey is the projection returned by AdminListKeys. Secrets
-// are NEVER surfaced — only metadata.
+// are NEVER surfaced, only metadata.
 type AdminAPIKey struct {
 	ID         int64  `json:"id"`
 	Name       string `json:"name"`

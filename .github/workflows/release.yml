@@ -3,7 +3,7 @@
 # Triggered by a `v*` git tag push. Verifies the tag, runs the
 # full test suite one final time, then publishes a GitHub Release.
 #
-# Go modules don't need a registry push — `go get` resolves tags
+# Go modules don't need a registry push, `go get` resolves tags
 # directly from GitHub. So a "release" for a Go module is really
 # "tag a commit + announce it."
 #

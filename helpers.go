@@ -1,4 +1,4 @@
-// helpers.go — convenience wrappers for the most common SDK uses.
+// helpers.go, convenience wrappers for the most common SDK uses.
 //
 // Mirrors helpers.py in the Python SDK so polyglot teams have
 // parity. AttestClaudeResponse / AttestOpenAIResponse are the
@@ -73,7 +73,7 @@ func (c *Client) attestProviderResponse(
 	}
 
 	// Build a structured payload the auditor can replay against
-	// the provider — matches the Python SDK's helper format.
+	// the provider, matches the Python SDK's helper format.
 	payloadObj := map[string]any{
 		"provider": provider,
 		"prompt":   prompt,
