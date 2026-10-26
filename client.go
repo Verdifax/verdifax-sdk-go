@@ -15,8 +15,12 @@ import (
 // Default values used by NewClient when not overridden in Config.
 const (
 	DefaultBaseURL = "https://api.verdifax.com"
-	DefaultTimeout = 30 * time.Second
-	UserAgent      = "verdifax-sdk-go/0.1.0"
+	// DefaultTimeout outlasts a slow sealed run: two public-log entries
+	// and, when AI output is sent, an AI review can take longer than 30
+	// seconds, and a client that gave up then reported an error for a run
+	// the server went on to seal.
+	DefaultTimeout = 90 * time.Second
+	UserAgent      = "verdifax-sdk-go/0.2.1"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
