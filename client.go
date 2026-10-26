@@ -20,7 +20,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/0.2.1"
+	UserAgent      = "verdifax-sdk-go/0.2.2"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because

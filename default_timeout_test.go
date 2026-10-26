@@ -1,6 +1,9 @@
 package verdifax
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -17,5 +20,18 @@ func TestDefaultTimeoutOutlastsASlowSealedRun(t *testing.T) {
 	}
 	if c.httpClient.Timeout != DefaultTimeout {
 		t.Fatalf("client timeout = %v, want %v", c.httpClient.Timeout, DefaultTimeout)
+	}
+}
+
+// The documented default must be the real one: v0.2.1 raised it to 90
+// seconds while config.go still said 30000 ms (round 38).
+func TestConfigDocsStateTheActualDefault(t *testing.T) {
+	src, err := os.ReadFile("config.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf("(defaults to %d)", DefaultTimeout.Milliseconds())
+	if !strings.Contains(string(src), want) {
+		t.Fatalf("config.go must document the default timeout as %q", want)
 	}
 }
