@@ -1,7 +1,8 @@
 # Release workflow for verdifax-sdk-go.
 #
-# Triggered by a `v*` git tag push. Verifies the tag, runs the
-# full test suite one final time, then publishes a GitHub Release.
+# Triggered by a `v*` git tag push. Runs the CI workflow, the full
+# test suite on every supported Go release, then publishes a GitHub
+# Release only if it passes.
 #
 # Go modules don't need a registry push, `go get` resolves tags
 # directly from GitHub. So a "release" for a Go module is really
@@ -31,21 +32,17 @@ permissions:
   contents: write    # needed to create a GitHub release
 
 jobs:
+  # The full CI matrix; nothing is released unless it passes.
+  test:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: "1.23"
-          cache: true
-
-      - name: go test -race (final gate)
-        run: go test -race -count=1 ./...
 
       - name: Generate release notes
         id: notes

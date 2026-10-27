@@ -3,10 +3,12 @@
 # Runs on every PR and every push to main:
 #   - go vet ./...           : compile-time correctness
 #   - go test -race ./...    : every unit test, with race detection
-#   - golangci-lint           : static analysis (when config present)
 #
 # Test runtime is < 30 seconds, the SDK's test surface is the
-# httptest-mocked orchestrator + a few pure-function helpers.
+# httptest-mocked orchestrator + a few pure-function helpers. The
+# matrix runs every Go release still supported, the oldest being the
+# go.mod minimum. The release workflow calls this workflow and
+# releases only if every version passes.
 
 name: CI
 
@@ -15,6 +17,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
@@ -25,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.22", "1.23"]
+        go-version: ["1.26", "1.27"]
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
