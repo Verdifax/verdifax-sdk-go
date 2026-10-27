@@ -91,8 +91,9 @@ After that, the orchestrator stores only its hash.
 
 This SDK only mediates HTTP I/O, it does NOT verify sealed
 manifests on its own. For offline verification with no Verdifax
-dependency, use the [`verdifax-pepg-verify`](https://github.com/Verdifax/verdifax-orchestrator/tree/main/cmd/verdifax-pepg-verify)
-CLI (signed binary distributed via GitHub Releases).
+dependency, use the open-source [`verdifax-verify`](https://github.com/Verdifax/verdifax-verify)
+CLI, v0.17.2 or later (signed binaries with SLSA provenance on its GitHub
+Releases), which checks both audit bundles and deny or halt receipts.
 
 ## License
 
