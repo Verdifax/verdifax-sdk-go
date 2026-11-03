@@ -32,7 +32,7 @@ type AttestRequest struct {
 	RegistryRecordHash Hex64
 
 	// AIOutputText, when non-empty, opts the request into the
-	// AIVP-T4 governance pipeline.
+	// AIVP governance pipeline.
 	AIOutputText string
 
 	// AttestedContext carries caller-attested actor + decision
@@ -163,8 +163,8 @@ func (c *Client) GetMACCHaltReceipt(ctx context.Context, runID int64) (map[strin
 	return c.getRunArtifact(ctx, runID, "macc-halt-receipt")
 }
 
-// GetAivpT4HaltReceipt returns the sealed AivpT4HaltReceipt for a
-// run whose AIVP-T4 governance returned a non-RELEASE decision.
+// GetAivpT4HaltReceipt returns the sealed AIVP halt receipt for a
+// run whose AIVP governance returned a non-RELEASE decision.
 // Returns *NotFoundError on RELEASE outcomes.
 func (c *Client) GetAivpT4HaltReceipt(ctx context.Context, runID int64) (map[string]any, error) {
 	return c.getRunArtifact(ctx, runID, "aivp-t4-halt-receipt")

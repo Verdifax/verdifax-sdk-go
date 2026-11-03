@@ -368,7 +368,7 @@ func TestFromEnv_BadTimeout(t *testing.T) {
 	}
 }
 
-// 17. AttestClaudeResponse round-trips with AIVP-T4 wiring.
+// 17. AttestClaudeResponse round-trips with AIVP wiring.
 func TestAttestClaudeResponse(t *testing.T) {
 	srv := startExtendedMock(t)
 	c, _ := NewClient(Config{BaseURL: srv.URL, APIKey: "k"})

@@ -54,7 +54,7 @@ type ExecuteRequest struct {
 	RegistryRecordHash Hex64  `json:"registry_record_hash"`
 
 	// AIOutputText, when non-empty, opts the request into the
-	// AIVP-T4 governance pipeline. The orchestrator runs Tier-4
+	// AIVP governance pipeline. The orchestrator runs AIVP
 	// governance over this text and binds the resulting PIA hash
 	// into the manifest.
 	AIOutputText string `json:"ai_output_text,omitempty"`

@@ -31,7 +31,7 @@ type ProviderResponse struct {
 
 // AttestClaudeResponse attests a Claude API response. Provider is
 // hard-coded to "anthropic"; AIOutputText is wired so the
-// orchestrator runs AIVP-T4 governance over the response text.
+// orchestrator runs AIVP governance over the response text.
 //
 // Recommended call shape:
 //
@@ -60,7 +60,7 @@ func (c *Client) AttestOpenAIResponse(
 }
 
 // attestProviderResponse is the shared body for both helpers. Marks
-// the request as AI-output-bearing so the orchestrator's AIVP-T4
+// the request as AI-output-bearing so the orchestrator's AIVP
 // governor runs over the response text.
 func (c *Client) attestProviderResponse(
 	ctx context.Context,
