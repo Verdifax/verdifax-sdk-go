@@ -51,7 +51,7 @@ func main() {
         log.Fatal(err)
     }
     if v.Verified {
-        fmt.Println("✓ Manifest hash recomputes, run is intact.")
+        fmt.Println("✓ Manifest hash recomputes.")
     }
 }
 ```
