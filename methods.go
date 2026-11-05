@@ -54,8 +54,12 @@ func (c *Client) Execute(ctx context.Context, req *ExecuteRequest) (*ExecuteResp
 	if req.ProgramID == "" || req.RouteID == "" || req.RegistryRecordHash == "" {
 		return nil, fmt.Errorf("verdifax: ProgramID, RouteID, and RegistryRecordHash are required")
 	}
+	body, signErr := c.signExecute(req)
+	if signErr != nil {
+		return nil, signErr
+	}
 	out := &ExecuteResponse{}
-	if err := c.doRequest(ctx, "POST", "/execute", req, out); err != nil {
+	if err := c.doRequest(ctx, "POST", "/execute", body, out); err != nil {
 		return nil, err
 	}
 	return out, nil

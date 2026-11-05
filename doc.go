@@ -44,6 +44,13 @@
 // X-Verdifax-Key header. The Client injects it automatically when
 // the Config carries APIKey.
 //
+// # Request signing
+//
+// Set Config.SigningKey to sign every path to POST /execute with
+// an Ed25519 private key held by the customer. GenerateRequestKey
+// creates a key pair, and RegisterRequestKey and ClearRequestKey
+// manage the public key on the API key.
+//
 // # Error model
 //
 // Methods return one of three error kinds:

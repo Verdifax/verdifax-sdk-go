@@ -63,6 +63,10 @@ type ExecuteRequest struct {
 	// metadata. Schema is open, any JSON-serializable structure
 	// the caller wants surfaced in the audit bundle.
 	AttestedContext map[string]any `json:"attested_context,omitempty"`
+
+	// RequestSignature is filled in on a copy of this request when
+	// the client has a SigningKey.
+	RequestSignature *RequestSignature `json:"request_signature,omitempty"`
 }
 
 // ExecuteResponse is the body returned by POST /execute on a

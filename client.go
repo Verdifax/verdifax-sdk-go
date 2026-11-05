@@ -20,7 +20,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/0.2.7"
+	UserAgent      = "verdifax-sdk-go/0.3.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -73,6 +73,12 @@ type Config struct {
 	// backoff with full jitter). Defaults to
 	// DefaultRetryBaseDelay.
 	RetryBaseDelay time.Duration
+
+	// SigningKey, when set, signs every path to POST /execute with
+	// this Ed25519 private key. It is never sent to the server. Leave
+	// it nil for unsigned requests. See GenerateRequestKey and
+	// RegisterRequestKey.
+	SigningKey SigningKey
 }
 
 // DefaultMaxRetries is the retry budget applied when Config.MaxRetries
@@ -91,6 +97,7 @@ type Client struct {
 	apiKey     string
 	httpClient *http.Client
 	userAgent  string
+	signer     *requestSigner
 }
 
 // NewClient validates the config and returns a Client. Returns
@@ -107,6 +114,11 @@ func NewClient(cfg Config) (*Client, error) {
 	if c.userAgent == "" {
 		c.userAgent = UserAgent
 	}
+	signer, signerErr := newRequestSigner(cfg.SigningKey)
+	if signerErr != nil {
+		return nil, signerErr
+	}
+	c.signer = signer
 	if cfg.HTTPClient != nil {
 		// Caller-supplied client: use as-is, no retry wrap.
 		c.httpClient = cfg.HTTPClient
