@@ -241,7 +241,6 @@ func TestSignatureCoversTheValuesAsDecoded(t *testing.T) {
 		"non-ascii":          {PayloadText: "caf\u00e9 \u4e16\u754c \U0001f600"},
 		"html characters":    {PayloadText: "<a href=\"x\">&</a> \u2028"},
 		"invalid utf8":       {PayloadText: "bad \xff\xfe bytes \xc3"},
-		"invalid route":      {PayloadText: "text", RouteID: "route-\xff"},
 		"text wins":          {PayloadText: "text", Payload: "aGVsbG8="},
 		"empty text":         {Payload: "aGVsbG8="},
 		"invalid in payload": {Payload: "\xffaGVsbG8="},
@@ -258,6 +257,23 @@ func TestSignatureCoversTheValuesAsDecoded(t *testing.T) {
 			verifyWire(t, rec.last(t), vectorPublic(t))
 		})
 	}
+}
+
+// A batch row is not checked first, so its signature also has to cover
+// a route with invalid UTF-8 as the server decodes it.
+func TestBatchRowSignatureCoversTheRouteAsDecoded(t *testing.T) {
+	c, rec := signingServer(t, vectorSeed())
+	row := ExecuteRequest{PayloadText: "text", RouteID: "route-\xff", ProgramID: vectorProgramID, RegistryRecordHash: vectorRegistry}
+	if _, err := c.ExecuteBatch(context.Background(), []ExecuteRequest{row}); err != nil {
+		t.Fatal(err)
+	}
+	var body struct {
+		Runs []wireBody `json:"runs"`
+	}
+	if decodeErr := json.Unmarshal([]byte(rec.last(t).Raw), &body); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	verifyWire(t, body.Runs[0], vectorPublic(t))
 }
 
 func TestNonceDiffersBetweenCalls(t *testing.T) {

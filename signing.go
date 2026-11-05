@@ -72,8 +72,9 @@ type RequestKeyRegistration struct {
 	PublicKey string `json:"public_key"`
 }
 
-// requestKeyBody is the body of POST /keys/request-key.
-type requestKeyBody struct {
+// RequestKeyBody is the body of POST /keys/request-key: the base64
+// public key and a signature proving the caller holds the private key.
+type RequestKeyBody struct {
 	PublicKey string `json:"public_key"`
 	Proof     string `json:"proof"`
 }
@@ -138,10 +139,10 @@ func (s *requestSigner) signAt(req *ExecuteRequest, signedAt, nonce string) *Req
 
 // registrationBody builds the public key and the proof that this
 // client holds the private key.
-func (s *requestSigner) registrationBody() *requestKeyBody {
+func (s *requestSigner) registrationBody() *RequestKeyBody {
 	publicKey := base64.StdEncoding.EncodeToString(s.key.Public().(ed25519.PublicKey))
 	proof := ed25519.Sign(s.key, []byte(requestKeyProofForm+"\x00"+publicKey))
-	return &requestKeyBody{PublicKey: publicKey, Proof: base64.StdEncoding.EncodeToString(proof)}
+	return &RequestKeyBody{PublicKey: publicKey, Proof: base64.StdEncoding.EncodeToString(proof)}
 }
 
 // requestSignaturePreimage is what a request signature signs: the
@@ -164,6 +165,62 @@ func payloadHash(req *ExecuteRequest) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// SignRequestOptions sets the time and nonce of SignRequest. Leave a
+// field empty for the current time or fresh random bytes. A nonce the
+// server has already seen is refused.
+type SignRequestOptions struct {
+	SignedAt string
+	Nonce    string
+}
+
+// SignRequest signs one execute request with key, without sending it.
+// A client with a SigningKey does this itself. opts may be nil.
+func SignRequest(key SigningKey, req *ExecuteRequest, opts *SignRequestOptions) (*RequestSignature, error) {
+	signer, keyErr := newRequestSigner(key)
+	if keyErr != nil {
+		return nil, keyErr
+	}
+	if signer == nil {
+		return nil, ErrSigningKeyRequired
+	}
+	if req == nil {
+		return nil, errors.New("verdifax: ExecuteRequest is required")
+	}
+	if opts == nil {
+		opts = &SignRequestOptions{}
+	}
+	signedAt, nonce := opts.SignedAt, opts.Nonce
+	if signedAt == "" {
+		signedAt = time.Now().UTC().Format(signedAtLayout)
+	}
+	if nonce == "" {
+		fresh := make([]byte, 16)
+		if _, randErr := rand.Read(fresh); randErr != nil {
+			return nil, fmt.Errorf("verdifax: request nonce: %w", randErr)
+		}
+		nonce = hex.EncodeToString(fresh)
+	}
+	return signer.signAt(req, signedAt, nonce), nil
+}
+
+// RequestKeyRegistrationBody builds the body of POST /keys/request-key
+// for key, without sending it.
+func RequestKeyRegistrationBody(key SigningKey) (*RequestKeyBody, error) {
+	signer, keyErr := newRequestSigner(key)
+	if keyErr != nil {
+		return nil, keyErr
+	}
+	if signer == nil {
+		return nil, ErrSigningKeyRequired
+	}
+	return signer.registrationBody(), nil
+}
+
+// RequestSignaturePreimage returns the bytes a request signature signs.
+func RequestSignaturePreimage(payloadHash, programID, routeID, registryRecordHash, signedAt, nonce string) []byte {
+	return requestSignaturePreimage(payloadHash, programID, routeID, registryRecordHash, signedAt, nonce)
+}
+
 // wireString returns s as the server decodes it. encoding/json writes
 // U+FFFD for each invalid UTF-8 byte, and so does this conversion, so
 // the signature covers the bytes that actually arrive.
@@ -171,20 +228,20 @@ func wireString(s string) string {
 	return string([]rune(s))
 }
 
-// signExecute returns req with a fresh signature on a copy, so a
-// request can be reused and shared across goroutines. A client with no
-// SigningKey returns req untouched.
-func (c *Client) signExecute(req *ExecuteRequest) (*ExecuteRequest, error) {
+// prepareExecute returns a copy of req with its derived flags and, with
+// a SigningKey, a fresh signature, so a request can be reused and shared
+// across goroutines.
+func (c *Client) prepareExecute(req *ExecuteRequest) (*ExecuteRequest, error) {
+	prepared := withExecuteFlags(req)
 	if c.signer == nil {
-		return req, nil
+		return prepared, nil
 	}
-	signature, signErr := c.signer.sign(req)
+	signature, signErr := c.signer.sign(prepared)
 	if signErr != nil {
 		return nil, signErr
 	}
-	signed := *req
-	signed.RequestSignature = signature
-	return &signed, nil
+	prepared.RequestSignature = signature
+	return prepared, nil
 }
 
 // RegisterRequestKey registers this client's public key on its API

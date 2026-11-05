@@ -61,8 +61,31 @@ type ExecuteRequest struct {
 
 	// AttestedContext carries caller-attested actor + decision
 	// metadata. Schema is open, any JSON-serializable structure
-	// the caller wants surfaced in the audit bundle.
+	// the caller wants surfaced in the audit bundle. The client
+	// derives its attested flag from the fields provided.
 	AttestedContext map[string]any `json:"attested_context,omitempty"`
+
+	// ReproducibilityContext is the runtime the caller declares for
+	// this run. Build it with CaptureEnvironment.
+	ReproducibilityContext *ReproducibilityContext `json:"reproducibility_context,omitempty"`
+
+	// RequestSubstance is the caller's record of the request: prompt,
+	// output, cost, latency and origin metadata. Recorded as supplied.
+	// Leave out origin.source_ip_hash and origin.user_agent_hash: the
+	// server computes those and refuses them.
+	RequestSubstance map[string]any `json:"request_substance,omitempty"`
+
+	// AuthorizationChain is the caller's approval chain. Recorded as
+	// supplied, not verified by Verdifax.
+	AuthorizationChain map[string]any `json:"authorization_chain,omitempty"`
+
+	// RegulatoryScaffolding is the caller's regulatory metadata.
+	// Recorded as supplied, not an assessment by Verdifax.
+	RegulatoryScaffolding map[string]any `json:"regulatory_scaffolding,omitempty"`
+
+	// CausalGraph is the caller's record of what led to this run.
+	// Recorded as supplied.
+	CausalGraph map[string]any `json:"causal_graph,omitempty"`
 
 	// RequestSignature is filled in on a copy of this request when
 	// the client has a SigningKey.
@@ -112,6 +135,25 @@ type ExecutionManifest struct {
 }
 
 // ── Runs ────────────────────────────────────────────────────────
+
+// Every status the server gives a run. A newer server may add others,
+// so Status fields stay plain strings.
+const (
+	RunStatusOK             = "ok"
+	RunStatusProbe          = "probe"
+	RunStatusPEPGDeny       = "pepg_deny"
+	RunStatusCCVHalt        = "ccv_halt"
+	RunStatusMACCHalt       = "macc_halt"
+	RunStatusAivpT4Halt     = "aivp_t4_halt"
+	RunStatusAttestationGap = "attestation_gap"
+	RunStatusStageError     = "stage_error"
+)
+
+// RunStatuses lists every status the server gives a run.
+func RunStatuses() []string {
+	return []string{RunStatusOK, RunStatusProbe, RunStatusPEPGDeny, RunStatusCCVHalt,
+		RunStatusMACCHalt, RunStatusAivpT4Halt, RunStatusAttestationGap, RunStatusStageError}
+}
 
 // Run is the response shape for GET /runs/{id}. Carries the
 // sealed manifest plus run-level metadata.

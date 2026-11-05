@@ -46,10 +46,11 @@
 //
 // # Request signing
 //
-// Set Config.SigningKey to sign every path to POST /execute with
-// an Ed25519 private key held by the customer. GenerateRequestKey
-// creates a key pair, and RegisterRequestKey and ClearRequestKey
-// manage the public key on the API key.
+// Set Config.SigningKey to sign every path to POST /execute, each row
+// of ExecuteBatch, and VerifyDeterminism with an Ed25519 private key
+// held by the customer. GenerateRequestKey creates a key pair, and
+// RegisterRequestKey and ClearRequestKey manage the public key on the
+// API key.
 //
 // # Error model
 //

@@ -2,6 +2,7 @@ package verdifax
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -42,19 +43,10 @@ func (c *Client) Version(ctx context.Context) (*Version, error) {
 // On budget halt (CCV/MACC): HTTP 422 + an *APIError; the run is
 // still persisted and retrievable via GetRun.
 func (c *Client) Execute(ctx context.Context, req *ExecuteRequest) (*ExecuteResponse, error) {
-	if err := c.requireAPIKey(); err != nil {
-		return nil, err
+	if checkErr := c.checkExecuteRequest(req); checkErr != nil {
+		return nil, checkErr
 	}
-	if req == nil {
-		return nil, fmt.Errorf("verdifax: ExecuteRequest is required")
-	}
-	if req.Payload == "" && req.PayloadText == "" {
-		return nil, fmt.Errorf("verdifax: ExecuteRequest needs Payload or PayloadText")
-	}
-	if req.ProgramID == "" || req.RouteID == "" || req.RegistryRecordHash == "" {
-		return nil, fmt.Errorf("verdifax: ProgramID, RouteID, and RegistryRecordHash are required")
-	}
-	body, signErr := c.signExecute(req)
+	body, signErr := c.prepareExecute(req)
 	if signErr != nil {
 		return nil, signErr
 	}
@@ -63,6 +55,75 @@ func (c *Client) Execute(ctx context.Context, req *ExecuteRequest) (*ExecuteResp
 		return nil, err
 	}
 	return out, nil
+}
+
+// checkExecuteRequest applies the checks every single-payload request
+// shares before anything is signed or sent.
+func (c *Client) checkExecuteRequest(req *ExecuteRequest) error {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return keyErr
+	}
+	if req == nil {
+		return fmt.Errorf("verdifax: ExecuteRequest is required")
+	}
+	if req.Payload == "" && req.PayloadText == "" {
+		return fmt.Errorf("verdifax: ExecuteRequest needs Payload or PayloadText")
+	}
+	if req.ProgramID == "" || req.RouteID == "" || req.RegistryRecordHash == "" {
+		return fmt.Errorf("verdifax: ProgramID, RouteID, and RegistryRecordHash are required")
+	}
+	if programErr := ValidateHex64(req.ProgramID, "program_id"); programErr != nil {
+		return programErr
+	}
+	if recordErr := ValidateHex64(req.RegistryRecordHash, "registry_record_hash"); recordErr != nil {
+		return recordErr
+	}
+	if routeErr := ValidateRouteID(req.RouteID); routeErr != nil {
+		return routeErr
+	}
+	return refuseCallerOriginHashes(req.RequestSubstance)
+}
+
+// refuseCallerOriginHashes refuses the two fields the server computes.
+// The server refuses them on POST /execute and in each row of a batch.
+func refuseCallerOriginHashes(substance map[string]any) error {
+	origin, hasOrigin := substance["origin"].(map[string]any)
+	if !hasOrigin {
+		return nil
+	}
+	for _, name := range []string{"source_ip_hash", "user_agent_hash"} {
+		if origin[name] != nil && origin[name] != "" {
+			return errors.New("verdifax: request_substance.origin.source_ip_hash and user_agent_hash are computed by the server and cannot be supplied")
+		}
+	}
+	return nil
+}
+
+// withExecuteFlags returns a copy of req with its derived flags set.
+func withExecuteFlags(req *ExecuteRequest) *ExecuteRequest {
+	prepared := *req
+	if req.AttestedContext != nil {
+		prepared.AttestedContext = withAttestedFlag(req.AttestedContext)
+	}
+	if req.ReproducibilityContext != nil {
+		prepared.ReproducibilityContext = req.ReproducibilityContext.withDeclaredFlag()
+	}
+	return &prepared
+}
+
+// withAttestedFlag returns a copy of context with attested derived: a
+// field counts as provided unless it is nil, empty text or false.
+func withAttestedFlag(context map[string]any) map[string]any {
+	out := make(map[string]any, len(context)+1)
+	attested := false
+	for name, value := range context {
+		out[name] = value
+		if name != "attested" && value != nil && value != "" && value != false {
+			attested = true
+		}
+	}
+	out["attested"] = attested
+	return out
 }
 
 // ── Runs ────────────────────────────────────────────────────────

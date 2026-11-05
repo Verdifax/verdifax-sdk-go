@@ -15,17 +15,24 @@ import (
 //
 // Variables consumed:
 //
-//   VERDIFAX_BASE_URL    base URL (defaults to https://api.verdifax.com)
+//   VERDIFAX_BASE_URL    base URL, read first
+//   VERDIFAX_API_URL     base URL, read when VERDIFAX_BASE_URL is unset
+//                        (defaults to https://api.verdifax.com)
 //   VERDIFAX_API_KEY     X-Verdifax-Key value (required for authed endpoints)
 //   VERDIFAX_TIMEOUT_MS  per-request timeout in ms (defaults to 90000)
 //   VERDIFAX_USER_AGENT  override the default User-Agent string
-//   VERDIFAX_MAX_RETRIES retry budget for idempotent GETs (defaults to 3)
+//   VERDIFAX_MAX_RETRIES retry budget for idempotent GETs (defaults to 3;
+//                        0 turns retries off)
 //
 // Returns an error when VERDIFAX_TIMEOUT_MS or VERDIFAX_MAX_RETRIES
 // is set to a non-integer.
 func FromEnv() (*Client, error) {
+	baseURL := os.Getenv("VERDIFAX_BASE_URL")
+	if baseURL == "" {
+		baseURL = os.Getenv("VERDIFAX_API_URL")
+	}
 	cfg := Config{
-		BaseURL:   os.Getenv("VERDIFAX_BASE_URL"),
+		BaseURL:   baseURL,
 		APIKey:    os.Getenv("VERDIFAX_API_KEY"),
 		UserAgent: os.Getenv("VERDIFAX_USER_AGENT"),
 	}
@@ -44,6 +51,10 @@ func FromEnv() (*Client, error) {
 			return nil, fmt.Errorf("verdifax: VERDIFAX_MAX_RETRIES=%q is not an integer: %w", v, err)
 		}
 		cfg.MaxRetries = n
+		if n == 0 {
+			// In Config, zero means the default and negative means off.
+			cfg.MaxRetries = -1
+		}
 	}
 
 	return NewClient(cfg)

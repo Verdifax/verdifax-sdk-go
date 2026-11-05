@@ -20,7 +20,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/0.3.0"
+	UserAgent      = "verdifax-sdk-go/1.0.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -75,7 +75,8 @@ type Config struct {
 	RetryBaseDelay time.Duration
 
 	// SigningKey, when set, signs every path to POST /execute with
-	// this Ed25519 private key. It is never sent to the server. Leave
+	// this Ed25519 private key, each row of an ExecuteBatch, and a
+	// VerifyDeterminism request. It is never sent to the server. Leave
 	// it nil for unsigned requests. See GenerateRequestKey and
 	// RegisterRequestKey.
 	SigningKey SigningKey
@@ -145,9 +146,18 @@ func NewClient(cfg Config) (*Client, error) {
 	return c, nil
 }
 
+// rawResponse is a response body kept as sent, with its headers.
+type rawResponse struct {
+	Body   []byte
+	Header http.Header
+}
+
 // doRequest is the shared HTTP path: marshal body if non-nil,
 // inject auth header, send, decode JSON response into out (if
 // non-nil).
+//
+// When out is a *rawResponse it receives the body undecoded with its
+// headers, for responses that are not JSON or must stay byte-exact.
 //
 // Returns one of: *AuthError, *NotFoundError, *APIError, or a
 // transport-level error from the underlying http.Client.
@@ -204,6 +214,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body, out a
 		default:
 			return &APIError{Status: resp.StatusCode, Path: path, Message: errMsg}
 		}
+	}
+
+	if raw, isRaw := out.(*rawResponse); isRaw {
+		raw.Body = respBytes
+		raw.Header = resp.Header
+		return nil
 	}
 
 	if out != nil {

@@ -38,6 +38,16 @@ type AttestRequest struct {
 	// AttestedContext carries caller-attested actor + decision
 	// metadata. Open schema; surfaces in the audit bundle.
 	AttestedContext map[string]any
+
+	// ReproducibilityContext is the runtime the caller declares for
+	// this run. Build it with CaptureEnvironment.
+	ReproducibilityContext *ReproducibilityContext
+
+	// The four caller-supplied blocks described on ExecuteRequest.
+	RequestSubstance      map[string]any
+	AuthorizationChain    map[string]any
+	RegulatoryScaffolding map[string]any
+	CausalGraph           map[string]any
 }
 
 // Attest is the high-level convenience wrapper around Execute.
@@ -71,6 +81,11 @@ func (c *Client) Attest(ctx context.Context, req *AttestRequest) (*ExecuteRespon
 		RegistryRecordHash: req.RegistryRecordHash,
 		AIOutputText:       req.AIOutputText,
 		AttestedContext:    req.AttestedContext,
+		ReproducibilityContext: req.ReproducibilityContext,
+		RequestSubstance:       req.RequestSubstance,
+		AuthorizationChain:     req.AuthorizationChain,
+		RegulatoryScaffolding:  req.RegulatoryScaffolding,
+		CausalGraph:            req.CausalGraph,
 	}
 	if len(req.Payload) > 0 {
 		body.Payload = base64.StdEncoding.EncodeToString(req.Payload)
@@ -132,6 +147,10 @@ type RunSummary struct {
 	ManifestHash Hex64  `json:"manifest_hash"`
 	Status       string `json:"status"`
 	OutcomeKind  string `json:"outcome_kind,omitempty"`
+
+	DurationMS      int64  `json:"duration_ms,omitempty"`
+	ErrorStage      string `json:"error_stage,omitempty"`
+	ExecutionRegion string `json:"execution_region,omitempty"`
 }
 
 // ── Sealed-artifact retrieval ──────────────────────────────────
