@@ -67,10 +67,12 @@ func (c *Client) SearchRuns(ctx context.Context, params *SearchRunsParams) ([]Ru
 
 // ExportRunsParams is the period for ExportRuns and ExportRunsCSV, as
 // RFC 3339 times. From is inclusive and To is exclusive. To defaults to
-// the time of the request.
+// the time of the request. JobID limits the export to the runs of one
+// job.
 type ExportRunsParams struct {
-	From string
-	To   string
+	From  string
+	To    string
+	JobID string
 }
 
 // RunsExport is the body of GET /runs/export in JSON form.
@@ -108,6 +110,9 @@ type ExportRow struct {
 	LeafHash               string `json:"leaf_hash"`
 	CompleteRecordEntryID  string `json:"complete_record_entry_id"`
 	CompleteRecordLeafHash string `json:"complete_record_leaf_hash"`
+	AnchorSource           string `json:"anchor_source"`
+	JobID                  string `json:"job_id,omitempty"`
+	StepID                 string `json:"step_id,omitempty"`
 }
 
 // ExportRuns lists what the server holds for this key in a period,
@@ -164,6 +169,7 @@ func exportPath(params *ExportRunsParams, format string) string {
 	if params != nil {
 		setQuery(q, "from", params.From)
 		setQuery(q, "to", params.To)
+		setQuery(q, "job_id", params.JobID)
 	}
 	q.Set("format", format)
 	return "/runs/export?" + q.Encode()

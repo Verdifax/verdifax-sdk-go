@@ -34,6 +34,7 @@ type ProviderOption func(*providerOptions)
 
 type providerOptions struct {
 	govern bool
+	job    *JobLink
 }
 
 // WithGovern also sends the response text as AIOutputText for the AIVP
@@ -41,6 +42,12 @@ type providerOptions struct {
 // output text is not sent for review.
 func WithGovern() ProviderOption {
 	return func(o *providerOptions) { o.govern = true }
+}
+
+// WithJob places this response in a job, as AttestRequest.Job does.
+// The response gives its RecordHash and SignedRequest as Attest does.
+func WithJob(job *JobLink) ProviderOption {
+	return func(o *providerOptions) { o.job = job }
 }
 
 // AttestClaudeResponse attests a Claude API response, with provider
@@ -98,6 +105,7 @@ func (c *Client) attestProviderResponse(
 		ProgramID:          programID,
 		RouteID:            routeID,
 		RegistryRecordHash: registryRecordHash,
+		Job:                options.job,
 		AttestedContext: map[string]any{
 			"actor_role":     "ai_assistant",
 			"model_provider": provider,

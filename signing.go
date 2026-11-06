@@ -4,6 +4,10 @@
 // then on the orchestrator accepts a run only with a signature by the
 // matching private key. The private key stays with the customer: it is
 // never sent to the server, logged, or placed in an error message.
+//
+// A client signs in version 2: it serializes the request once and signs
+// those exact bytes, so every language signs what the server reads, with
+// nothing rebuilt on either side.
 
 package verdifax
 
@@ -12,9 +16,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,16 +27,20 @@ import (
 )
 
 const (
-	requestSignatureForm = "verdifax.request.v1"
-	requestKeyProofForm  = "verdifax.request-key.v1"
-	requestKeyPath       = "/keys/request-key"
+	requestSignatureForm     = "verdifax.request.v1"
+	requestSignatureFormV2   = "verdifax.request.v2"
+	requestSignatureVersion2 = "2"
+	requestKeyProofForm      = "verdifax.request-key.v1"
+	requestKeyChangeForm     = "verdifax.request-key-change.v1"
+	jobForm                  = "verdifax.job.v1"
+	requestKeyPath           = "/keys/request-key"
 
 	// signedAtLayout is RFC 3339 UTC with whole seconds.
 	signedAtLayout = "2006-01-02T15:04:05Z"
 )
 
-// ErrSigningKeyRequired is returned by RegisterRequestKey on a client
-// constructed without a SigningKey.
+// ErrSigningKeyRequired is returned by RegisterRequestKey and
+// RotateRequestKey on a client constructed without a SigningKey.
 var ErrSigningKeyRequired = errors.New("verdifax: Config.SigningKey is required for this method")
 
 // SigningKey holds an Ed25519 private key: the 32 raw bytes, which is
@@ -55,6 +63,10 @@ func (SigningKey) MarshalJSON() ([]byte, error) {
 // request. The public key comes from the registration, never from the
 // request.
 type RequestSignature struct {
+	// Version is "2" on what a client with a SigningKey sends. It is
+	// empty on the version 1 form that SignRequest returns.
+	Version string `json:"version,omitempty"`
+
 	// Signature is the base64 Ed25519 signature.
 	Signature string `json:"signature"`
 
@@ -74,9 +86,34 @@ type RequestKeyRegistration struct {
 
 // RequestKeyBody is the body of POST /keys/request-key: the base64
 // public key and a signature proving the caller holds the private key.
+// Replacing a registered key also needs Change.
 type RequestKeyBody struct {
 	PublicKey string `json:"public_key"`
 	Proof     string `json:"proof"`
+
+	// Change is the current key's approval of the replacement.
+	Change *RequestKeyChange `json:"change,omitempty"`
+}
+
+// RequestKeyChange is the current key's approval of replacing or
+// clearing itself. The server refuses either change without it once a
+// key is registered.
+type RequestKeyChange struct {
+	// Signature is the base64 Ed25519 signature by the current key.
+	Signature string `json:"signature"`
+
+	// SignedAt is RFC 3339 UTC with whole seconds.
+	SignedAt string `json:"signed_at"`
+
+	// Nonce is 16 random bytes as 32 lowercase hex characters.
+	Nonce string `json:"nonce"`
+}
+
+// signedEnvelope is the whole body of a signed call: the exact signed
+// text and its signature, and nothing else.
+type signedEnvelope struct {
+	SignedRequest    string            `json:"signed_request"`
+	RequestSignature *RequestSignature `json:"request_signature"`
 }
 
 // GenerateRequestKey creates a new Ed25519 key pair on this machine, as
@@ -90,8 +127,9 @@ func GenerateRequestKey() (ed25519.PublicKey, SigningKey, error) {
 	return publicKey, SigningKey(privateKey.Seed()), nil
 }
 
-// requestSigner sits behind a pointer in Client, so printing a Client
-// shows an address and not the key.
+// requestSigner holds one key and never changes. RotateRequestKey and
+// ClearRequestKey swap the whole signer in Client while other goroutines
+// may be signing, so each call works from the one signer it loaded.
 type requestSigner struct {
 	key ed25519.PrivateKey
 }
@@ -103,34 +141,86 @@ func newRequestSigner(key SigningKey) (*requestSigner, error) {
 	if key == nil {
 		return nil, nil
 	}
+	var private ed25519.PrivateKey
 	switch len(key) {
 	case ed25519.SeedSize:
-		return &requestSigner{key: ed25519.NewKeyFromSeed(key)}, nil
+		private = ed25519.NewKeyFromSeed(key)
 	case ed25519.PrivateKeySize:
-		full := ed25519.NewKeyFromSeed(key[:ed25519.SeedSize])
-		if !bytes.Equal(full, key) {
+		private = ed25519.NewKeyFromSeed(key[:ed25519.SeedSize])
+		if !bytes.Equal(private, key) {
 			return nil, errors.New("verdifax: SigningKey's public half does not match its private half")
 		}
-		return &requestSigner{key: full}, nil
 	default:
 		return nil, fmt.Errorf("verdifax: SigningKey must be %d or %d bytes (got %d)",
 			ed25519.SeedSize, ed25519.PrivateKeySize, len(key))
 	}
+	return &requestSigner{key: private}, nil
 }
 
-// sign signs req now, with a fresh nonce.
-func (s *requestSigner) sign(req *ExecuteRequest) (*RequestSignature, error) {
+// freshNonce returns 16 random bytes as 32 lowercase hex characters.
+func freshNonce() (string, error) {
 	nonce := make([]byte, 16)
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, fmt.Errorf("verdifax: request nonce: %w", err)
+	if _, randErr := rand.Read(nonce); randErr != nil {
+		return "", fmt.Errorf("verdifax: request nonce: %w", randErr)
 	}
-	return s.signAt(req, time.Now().UTC().Format(signedAtLayout), hex.EncodeToString(nonce)), nil
+	return hex.EncodeToString(nonce), nil
 }
 
+// sign serializes req once and signs that text now, with a fresh nonce.
+func (s *requestSigner) sign(req *ExecuteRequest) (*signedEnvelope, error) {
+	nonce, nonceErr := freshNonce()
+	if nonceErr != nil {
+		return nil, nonceErr
+	}
+	return s.signTextAt(req, time.Now().UTC().Format(signedAtLayout), nonce)
+}
+
+// signTextAt builds the version 2 envelope for req. The text inside it
+// is the only copy of the request the server reads.
+func (s *requestSigner) signTextAt(req *ExecuteRequest, signedAt, nonce string) (*signedEnvelope, error) {
+	unsigned := *req
+	unsigned.RequestSignature = nil
+	text, marshalErr := json.Marshal(&unsigned)
+	if marshalErr != nil {
+		return nil, fmt.Errorf("verdifax: marshal signed request: %w", marshalErr)
+	}
+	preimage := requestSignaturePreimageV2(sha256Hex(string(text)), payloadHash(req), wireString(req.ProgramID),
+		wireString(req.RouteID), wireString(req.RegistryRecordHash), aiOutputHash(req), req.Job, signedAt, nonce)
+	return &signedEnvelope{
+		SignedRequest: string(text),
+		RequestSignature: &RequestSignature{
+			Version:   requestSignatureVersion2,
+			Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(s.key, preimage)),
+			SignedAt:  signedAt,
+			Nonce:     nonce,
+		},
+	}, nil
+}
+
+// signAt signs req in the version 1 form, for SignRequest.
 func (s *requestSigner) signAt(req *ExecuteRequest, signedAt, nonce string) *RequestSignature {
 	preimage := requestSignaturePreimage(payloadHash(req), wireString(req.ProgramID), wireString(req.RouteID),
 		wireString(req.RegistryRecordHash), signedAt, nonce)
 	return &RequestSignature{
+		Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(s.key, preimage)),
+		SignedAt:  signedAt,
+		Nonce:     nonce,
+	}
+}
+
+// approveChange signs the replacement of this key by newKey, the base64
+// public key, or its clearing when newKey is empty.
+func (s *requestSigner) approveChange(newKey string) (*RequestKeyChange, error) {
+	nonce, nonceErr := freshNonce()
+	if nonceErr != nil {
+		return nil, nonceErr
+	}
+	return s.approveChangeAt(newKey, time.Now().UTC().Format(signedAtLayout), nonce), nil
+}
+
+func (s *requestSigner) approveChangeAt(newKey, signedAt, nonce string) *RequestKeyChange {
+	preimage := requestKeyChangePreimage(newKey, signedAt, nonce)
+	return &RequestKeyChange{
 		Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(s.key, preimage)),
 		SignedAt:  signedAt,
 		Nonce:     nonce,
@@ -153,6 +243,25 @@ func requestSignaturePreimage(payloadHash, programID, routeID, registryRecordHas
 		registryRecordHash, signedAt, nonce}, "\x00"))
 }
 
+// requestSignaturePreimageV2 is what a version 2 signature signs: the
+// fields joined with single zero bytes, matching the orchestrator's
+// RequestSignaturePreimageV2. bodyHash covers the whole signed text and
+// the other values repeat what the record can show. A nil job has all
+// its fields empty and final false.
+func requestSignaturePreimageV2(bodyHash, payloadHash, programID, routeID, registryRecordHash, aiOutputHash string,
+	job *JobLink, signedAt, nonce string) []byte {
+	parts := []string{requestSignatureFormV2, bodyHash, payloadHash, programID, routeID, registryRecordHash, aiOutputHash}
+	parts = append(parts, job.preimageFields()...)
+	parts = append(parts, signedAt, nonce)
+	return []byte(strings.Join(parts, "\x00"))
+}
+
+// requestKeyChangePreimage is what the current key signs to replace or
+// clear itself. newKey is empty when clearing.
+func requestKeyChangePreimage(newKey, signedAt, nonce string) []byte {
+	return []byte(strings.Join([]string{requestKeyChangeForm, newKey, signedAt, nonce}, "\x00"))
+}
+
 // payloadHash hashes what the server treats as the payload: the
 // payload_text string when it is non-empty, otherwise the payload
 // string exactly as sent. The server does not base64-decode it.
@@ -161,8 +270,16 @@ func payloadHash(req *ExecuteRequest) string {
 	if payload == "" {
 		payload = req.Payload
 	}
-	sum := sha256.Sum256([]byte(wireString(payload)))
-	return hex.EncodeToString(sum[:])
+	return sha256Hex(wireString(payload))
+}
+
+// aiOutputHash hashes the AI output text as the server decodes it, or
+// is empty when there is none.
+func aiOutputHash(req *ExecuteRequest) string {
+	if req.AIOutputText == "" {
+		return ""
+	}
+	return sha256Hex(wireString(req.AIOutputText))
 }
 
 // SignRequestOptions sets the time and nonce of SignRequest. Leave a
@@ -173,8 +290,9 @@ type SignRequestOptions struct {
 	Nonce    string
 }
 
-// SignRequest signs one execute request with key, without sending it.
-// A client with a SigningKey does this itself. opts may be nil.
+// SignRequest signs one execute request with key in the version 1 form,
+// without sending it. A client with a SigningKey signs in version 2
+// itself, and a job needs version 2. opts may be nil.
 func SignRequest(key SigningKey, req *ExecuteRequest, opts *SignRequestOptions) (*RequestSignature, error) {
 	signer, keyErr := newRequestSigner(key)
 	if keyErr != nil {
@@ -194,11 +312,11 @@ func SignRequest(key SigningKey, req *ExecuteRequest, opts *SignRequestOptions) 
 		signedAt = time.Now().UTC().Format(signedAtLayout)
 	}
 	if nonce == "" {
-		fresh := make([]byte, 16)
-		if _, randErr := rand.Read(fresh); randErr != nil {
-			return nil, fmt.Errorf("verdifax: request nonce: %w", randErr)
+		fresh, nonceErr := freshNonce()
+		if nonceErr != nil {
+			return nil, nonceErr
 		}
-		nonce = hex.EncodeToString(fresh)
+		nonce = fresh
 	}
 	return signer.signAt(req, signedAt, nonce), nil
 }
@@ -216,7 +334,8 @@ func RequestKeyRegistrationBody(key SigningKey) (*RequestKeyBody, error) {
 	return signer.registrationBody(), nil
 }
 
-// RequestSignaturePreimage returns the bytes a request signature signs.
+// RequestSignaturePreimage returns the bytes a version 1 request
+// signature signs.
 func RequestSignaturePreimage(payloadHash, programID, routeID, registryRecordHash, signedAt, nonce string) []byte {
 	return requestSignaturePreimage(payloadHash, programID, routeID, registryRecordHash, signedAt, nonce)
 }
@@ -228,45 +347,130 @@ func wireString(s string) string {
 	return string([]rune(s))
 }
 
-// prepareExecute returns a copy of req with its derived flags and, with
-// a SigningKey, a fresh signature, so a request can be reused and shared
-// across goroutines.
-func (c *Client) prepareExecute(req *ExecuteRequest) (*ExecuteRequest, error) {
+// preparedExecute is one request ready to send. signedText is the exact
+// signed JSON, empty when the client does not sign.
+type preparedExecute struct {
+	body       any
+	signedText string
+}
+
+// prepareExecute builds what goes on the wire for req, without changing
+// req, so a request can be reused and shared across goroutines. Without
+// a SigningKey that is a copy with its derived flags, as plain JSON.
+// With one it is the signed envelope, with a fresh signature.
+func (c *Client) prepareExecute(req *ExecuteRequest) (*preparedExecute, error) {
 	prepared := withExecuteFlags(req)
-	if c.signer == nil {
-		return prepared, nil
+	job, jobErr := normalizeJob(req.Job)
+	if jobErr != nil {
+		return nil, jobErr
 	}
-	signature, signErr := c.signer.sign(prepared)
+	prepared.Job = job
+	signer := c.signer.Load()
+	if signer == nil {
+		return &preparedExecute{body: prepared}, nil
+	}
+	envelope, signErr := signer.sign(prepared)
 	if signErr != nil {
 		return nil, signErr
 	}
-	prepared.RequestSignature = signature
-	return prepared, nil
+	return &preparedExecute{body: envelope, signedText: envelope.SignedRequest}, nil
 }
 
 // RegisterRequestKey registers this client's public key on its API
 // key, with the proof that the client holds the private key. From then
 // on the server refuses a run on this API key without a request
-// signature. Returns ErrSigningKeyRequired without a SigningKey.
+// signature. Use RotateRequestKey to replace a registered key. Returns
+// ErrSigningKeyRequired without a SigningKey, or after ClearRequestKey.
 func (c *Client) RegisterRequestKey(ctx context.Context) (*RequestKeyRegistration, error) {
 	if err := c.requireAPIKey(); err != nil {
 		return nil, err
 	}
-	if c.signer == nil {
+	signer := c.signer.Load()
+	if signer == nil {
 		return nil, ErrSigningKeyRequired
 	}
 	out := &RequestKeyRegistration{}
-	if err := c.doRequest(ctx, "POST", requestKeyPath, c.signer.registrationBody(), out); err != nil {
+	if err := c.doRequest(ctx, "POST", requestKeyPath, signer.registrationBody(), out); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ClearRequestKey clears the registered public key, so the server stops
-// requiring request signatures on this API key.
-func (c *Client) ClearRequestKey(ctx context.Context) error {
-	if err := c.requireAPIKey(); err != nil {
-		return err
+// RotateRequestKey replaces the registered key with newKey. The new key
+// proves it is held and this client's current key approves the change.
+// After success the client signs with newKey. After any error it keeps
+// the current key, so check the registration after a timeout, because
+// the server may have made the change. Returns ErrSigningKeyRequired
+// when the client has no SigningKey or newKey is nil.
+func (c *Client) RotateRequestKey(ctx context.Context, newKey SigningKey) (*RequestKeyRegistration, error) {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return nil, keyErr
 	}
-	return c.doRequest(ctx, "DELETE", requestKeyPath, nil, nil)
+	current := c.signer.Load()
+	if current == nil {
+		return nil, ErrSigningKeyRequired
+	}
+	next, nextErr := newRequestSigner(newKey)
+	if nextErr != nil {
+		return nil, nextErr
+	}
+	if next == nil {
+		return nil, ErrSigningKeyRequired
+	}
+	body := next.registrationBody()
+	change, changeErr := current.approveChange(body.PublicKey)
+	if changeErr != nil {
+		return nil, changeErr
+	}
+	body.Change = change
+	out := &RequestKeyRegistration{}
+	if rotateErr := c.doRequest(ctx, "POST", requestKeyPath, body, out); rotateErr != nil {
+		return nil, rotateErr
+	}
+	c.signer.Store(next)
+	return out, nil
+}
+
+// ClearRequestKey clears the registered public key, so the server stops
+// requiring request signatures on this API key. A client with a
+// SigningKey sends that key's approval, which the server requires once
+// a key is registered. A client without one sends no body. After success
+// the client drops its SigningKey and sends unsigned requests, because
+// the server refuses a signature on an API key with no registered key.
+// After an error it keeps the key. If the key holder lost the key, an
+// admin can use AdminClearRequestKey.
+func (c *Client) ClearRequestKey(ctx context.Context) error {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return keyErr
+	}
+	signer := c.signer.Load()
+	if signer == nil {
+		return c.doRequest(ctx, "DELETE", requestKeyPath, nil, nil)
+	}
+	change, changeErr := signer.approveChange("")
+	if changeErr != nil {
+		return changeErr
+	}
+	body := struct {
+		Change *RequestKeyChange `json:"change"`
+	}{Change: change}
+	if clearErr := c.doRequest(ctx, "DELETE", requestKeyPath, body, nil); clearErr != nil {
+		return clearErr
+	}
+	c.signer.Store(nil)
+	return nil
+}
+
+// AdminClearRequestKey clears the request key on an API key by ID, for
+// a holder who lost the key, after a manual check. It is the one way to
+// clear a key without that key. keyID may name any API key, so this
+// client keeps its own SigningKey.
+func (c *Client) AdminClearRequestKey(ctx context.Context, keyID int64) error {
+	if apiKeyErr := c.requireAPIKey(); apiKeyErr != nil {
+		return apiKeyErr
+	}
+	if keyID <= 0 {
+		return errors.New("verdifax: keyID must be > 0")
+	}
+	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/admin/keys/%d/request-key", keyID), nil, nil)
 }

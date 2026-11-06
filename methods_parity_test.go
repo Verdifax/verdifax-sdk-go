@@ -3,9 +3,7 @@ package verdifax
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -293,22 +291,19 @@ func TestExecuteBatchPostsRunsAndReturnsFailedRows(t *testing.T) {
 	}
 }
 
-// signatureVerifies rebuilds the signed bytes from a received row, as
-// the server does, written out independently of the SDK.
+// signatureVerifies checks a received row with the shared public key.
 func signatureVerifies(t *testing.T, row wireBody) bool {
 	t.Helper()
 	publicKey, keyErr := base64.StdEncoding.DecodeString(vectorPublicKey)
 	if keyErr != nil {
 		t.Fatal(keyErr)
 	}
-	sum := sha256.Sum256([]byte(row.PayloadText))
-	signed := strings.Join([]string{"verdifax.request.v1", hex.EncodeToString(sum[:]), row.ProgramID, row.RouteID,
-		row.RegistryRecordHash, row.RequestSignature.SignedAt, row.RequestSignature.Nonce}, "\x00")
+	preimage := wirePreimage(t, row)
 	signature, sigErr := base64.StdEncoding.DecodeString(row.RequestSignature.Signature)
 	if sigErr != nil {
 		t.Fatal(sigErr)
 	}
-	return ed25519.Verify(publicKey, []byte(signed), signature)
+	return ed25519.Verify(publicKey, preimage, signature)
 }
 
 func TestSignedExecuteBatchGivesEachRowItsOwnSignatureAndNonce(t *testing.T) {

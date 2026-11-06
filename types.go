@@ -20,18 +20,18 @@ type Health struct {
 // Version is the response shape for GET /version. Surfaces deploy
 // attestation: which binary, which formula era, which kernels.
 type Version struct {
-	Service              string            `json:"service"`
-	APIContractVersion   string            `json:"api_contract_version,omitempty"`
-	OrchestratorVersion  string            `json:"orchestrator_version,omitempty"`
-	OrchestratorGitSHA   string            `json:"orchestrator_git_sha,omitempty"`
-	FormulaVersion       string            `json:"formula_version,omitempty"`
-	FormulaEras          []FormulaEra      `json:"formula_eras,omitempty"`
-	KernelVersions       map[string]string `json:"kernel_versions,omitempty"`
-	EngineVersions       map[string]string `json:"engine_versions,omitempty"`
-	AivpT4Mode           string            `json:"aivp_t4_mode,omitempty"`
-	Region               string            `json:"region,omitempty"`
-	Instance             string            `json:"instance,omitempty"`
-	Time                 string            `json:"time"`
+	Service             string            `json:"service"`
+	APIContractVersion  string            `json:"api_contract_version,omitempty"`
+	OrchestratorVersion string            `json:"orchestrator_version,omitempty"`
+	OrchestratorGitSHA  string            `json:"orchestrator_git_sha,omitempty"`
+	FormulaVersion      string            `json:"formula_version,omitempty"`
+	FormulaEras         []FormulaEra      `json:"formula_eras,omitempty"`
+	KernelVersions      map[string]string `json:"kernel_versions,omitempty"`
+	EngineVersions      map[string]string `json:"engine_versions,omitempty"`
+	AivpT4Mode          string            `json:"aivp_t4_mode,omitempty"`
+	Region              string            `json:"region,omitempty"`
+	Instance            string            `json:"instance,omitempty"`
+	Time                string            `json:"time"`
 }
 
 // FormulaEra describes one verifiable manifest era.
@@ -58,6 +58,13 @@ type ExecuteRequest struct {
 	// governance over this text and binds the resulting PIA hash
 	// into the manifest.
 	AIOutputText string `json:"ai_output_text,omitempty"`
+
+	// Job places this run in a job. Execute, Attest and each row of
+	// ExecuteBatch accept it, and the SDK checks its names before
+	// sending. On a request key, a job needs a client SigningKey, which
+	// signs in version 2. VerifyDeterminism runs twice, so the server
+	// refuses it there.
+	Job *JobLink `json:"job,omitempty"`
 
 	// AttestedContext carries caller-attested actor + decision
 	// metadata. Schema is open, any JSON-serializable structure
@@ -87,8 +94,9 @@ type ExecuteRequest struct {
 	// Recorded as supplied.
 	CausalGraph map[string]any `json:"causal_graph,omitempty"`
 
-	// RequestSignature is filled in on a copy of this request when
-	// the client has a SigningKey.
+	// RequestSignature carries a signature from SignRequest on a client
+	// without a SigningKey. A client with a SigningKey ignores it and
+	// sends its own version 2 signature beside the signed text.
 	RequestSignature *RequestSignature `json:"request_signature,omitempty"`
 }
 
@@ -99,11 +107,20 @@ type ExecuteResponse struct {
 	RunID      int64             `json:"run_id"`
 	Manifest   ExecutionManifest `json:"manifest"`
 	DurationMS int64             `json:"duration_ms"`
+
+	// RecordHash is this run's record in a job map: the manifest hash
+	// of a completed run.
+	RecordHash Hex64 `json:"record_hash,omitempty"`
+
+	// SignedRequest is the exact text signed for this call, filled in
+	// by the client when it signed. Keep it for verdifax-verify
+	// --request.
+	SignedRequest string `json:"signed_request,omitempty"`
 }
 
 // ExecutionManifest is the sealed manifest. Every field
 // contributes to the ManifestHash. Subset of the canonical fields
-//, see the orchestrator's internal/pipeline/types.go for the
+// , see the orchestrator's internal/pipeline/types.go for the
 // full struct.
 //
 // Field tags use the Go default (CapitalCamelCase) because that's
@@ -158,13 +175,13 @@ func RunStatuses() []string {
 // Run is the response shape for GET /runs/{id}. Carries the
 // sealed manifest plus run-level metadata.
 type Run struct {
-	OK            bool              `json:"ok"`
-	ID            int64             `json:"id"`
-	CreatedAt     string            `json:"created_at"`
-	PayloadHash   Hex64             `json:"payload_hash"`
-	ProgramID     Hex64             `json:"program_id"`
-	RouteID       string            `json:"route_id"`
-	ManifestHash  Hex64             `json:"manifest_hash"`
+	OK           bool              `json:"ok"`
+	ID           int64             `json:"id"`
+	CreatedAt    string            `json:"created_at"`
+	PayloadHash  Hex64             `json:"payload_hash"`
+	ProgramID    Hex64             `json:"program_id"`
+	RouteID      string            `json:"route_id"`
+	ManifestHash Hex64             `json:"manifest_hash"`
 	DurationMS   int64             `json:"duration_ms"`
 	Status       string            `json:"status"`
 	ErrorStage   string            `json:"error_stage,omitempty"`
@@ -174,14 +191,14 @@ type Run struct {
 
 // VerifyResponse is the response shape for GET /runs/{id}/verify.
 type VerifyResponse struct {
-	OK              bool             `json:"ok"`
-	Verified        bool             `json:"verified"`
-	ManifestHash    Hex64            `json:"manifest_hash"`
-	RecomputedHash  Hex64            `json:"recomputed_hash"`
-	FormulaVersion  string           `json:"formula_version"`
-	VerificationAt  string           `json:"verification_at"`
+	OK               bool            `json:"ok"`
+	Verified         bool            `json:"verified"`
+	ManifestHash     Hex64           `json:"manifest_hash"`
+	RecomputedHash   Hex64           `json:"recomputed_hash"`
+	FormulaVersion   string          `json:"formula_version"`
+	VerificationAt   string          `json:"verification_at"`
 	VerificationKind string          `json:"verification_kind"`
-	DCAEEngineHint  *DCAEEngineHint  `json:"dcae_engine_hint,omitempty"`
+	DCAEEngineHint   *DCAEEngineHint `json:"dcae_engine_hint,omitempty"`
 }
 
 // DCAEEngineHint surfaces the available DCAE engine version + path

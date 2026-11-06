@@ -27,11 +27,18 @@ func (e *NotFoundError) Error() string {
 // APIError is returned on every other non-2xx response. Status
 // carries the HTTP code; Path is the endpoint that errored;
 // Message is the orchestrator's error message (when it returned
-// a structured envelope) or the raw response body.
+// a structured envelope) or the raw response body. RecordHash is the
+// receipt hash of a refused or halted run, when the body carries one.
+// SignedRequest is the exact text the client signed for this call, on a
+// signed Execute, Attest or VerifyDeterminism. Keep it for
+// verdifax-verify --request. It holds the request, so Error leaves it
+// out.
 type APIError struct {
-	Status  int
-	Path    string
-	Message string
+	Status        int
+	Path          string
+	Message       string
+	RecordHash    Hex64
+	SignedRequest string
 }
 
 func (e *APIError) Error() string {

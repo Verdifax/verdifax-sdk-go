@@ -55,7 +55,26 @@ type wireBody struct {
 	RegistryRecordHash string            `json:"registry_record_hash"`
 	PublicKey          string            `json:"public_key"`
 	Proof              string            `json:"proof"`
+	AIOutputText       string            `json:"ai_output_text"`
+	Job                *JobLink          `json:"job"`
+	Change             *RequestKeyChange `json:"change"`
+	SignedRequest      string            `json:"signed_request"`
 	RequestSignature   *RequestSignature `json:"request_signature"`
+}
+
+// decodeSigned replaces a signed body with the request inside it, as
+// the orchestrator does, keeping the signature and the exact text.
+func decodeSigned(outer wireBody) (wireBody, error) {
+	if outer.SignedRequest == "" {
+		return outer, nil
+	}
+	inner := wireBody{}
+	if decodeErr := json.Unmarshal([]byte(outer.SignedRequest), &inner); decodeErr != nil {
+		return outer, decodeErr
+	}
+	inner.Method, inner.Path, inner.Raw = outer.Method, outer.Path, outer.Raw
+	inner.SignedRequest, inner.RequestSignature = outer.SignedRequest, outer.RequestSignature
+	return inner, nil
 }
 
 type recorder struct {
@@ -88,6 +107,10 @@ func signingServer(t *testing.T, key SigningKey) (*Client, *recorder) {
 			}
 		}
 		body.Method, body.Path, body.Raw = r.Method, r.URL.Path, string(raw)
+		body, err = decodeSigned(body)
+		if err != nil {
+			t.Errorf("decode signed request: %v", err)
+		}
 		rec.mu.Lock()
 		rec.bodies = append(rec.bodies, body)
 		rec.mu.Unlock()
@@ -101,25 +124,52 @@ func signingServer(t *testing.T, key SigningKey) (*Client, *recorder) {
 	return c, rec
 }
 
-// verifyWire rebuilds the signed bytes from the decoded request, as
-// the orchestrator does, and checks the signature.
-func verifyWire(t *testing.T, b wireBody, public ed25519.PublicKey) {
+// wirePreimage rebuilds the version 2 signed bytes from a received
+// body, as the orchestrator does, written out independently of the SDK.
+func wirePreimage(t *testing.T, outer wireBody) []byte {
 	t.Helper()
+	b, decodeErr := decodeSigned(outer)
+	if decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
 	if b.RequestSignature == nil {
 		t.Fatal("no request_signature in the request")
+	}
+	if b.RequestSignature.Version != "2" {
+		t.Fatalf("signature version = %q", b.RequestSignature.Version)
+	}
+	sum := func(text string) string {
+		digest := sha256.Sum256([]byte(text))
+		return hex.EncodeToString(digest[:])
 	}
 	payload := b.PayloadText
 	if payload == "" {
 		payload = b.Payload
 	}
-	sum := sha256.Sum256([]byte(payload))
-	preimage := strings.Join([]string{"verdifax.request.v1", hex.EncodeToString(sum[:]), b.ProgramID, b.RouteID,
-		b.RegistryRecordHash, b.RequestSignature.SignedAt, b.RequestSignature.Nonce}, "\x00")
+	aiHash := ""
+	if b.AIOutputText != "" {
+		aiHash = sum(b.AIOutputText)
+	}
+	job := []string{"", "", "", "", "false"}
+	if b.Job != nil {
+		job = []string{b.Job.JobID, b.Job.StepID, strings.Join(b.Job.PreviousRecordHashes, ","),
+			strings.Join(b.Job.ExternalPrevious, ","), fmt.Sprint(b.Job.Final)}
+	}
+	parts := []string{"verdifax.request.v2", sum(b.SignedRequest), sum(payload), b.ProgramID, b.RouteID,
+		b.RegistryRecordHash, aiHash, "verdifax.job.v1"}
+	parts = append(append(parts, job...), b.RequestSignature.SignedAt, b.RequestSignature.Nonce)
+	return []byte(strings.Join(parts, "\x00"))
+}
+
+// verifyWire checks a received signature over the rebuilt bytes.
+func verifyWire(t *testing.T, b wireBody, public ed25519.PublicKey) {
+	t.Helper()
+	preimage := wirePreimage(t, b)
 	signature, err := base64.StdEncoding.DecodeString(b.RequestSignature.Signature)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ed25519.Verify(public, []byte(preimage), signature) {
+	if !ed25519.Verify(public, preimage, signature) {
 		t.Fatalf("signature does not verify over %q", preimage)
 	}
 }
@@ -200,6 +250,17 @@ func TestExecuteSignsAndTheSignatureVerifies(t *testing.T) {
 	}
 }
 
+func TestSignRequestStaysInTheVersionOneForm(t *testing.T) {
+	got, err := SignRequest(vectorSeed(), vectorRequest(), &SignRequestOptions{SignedAt: vectorSignedAt, Nonce: vectorNonce})
+	if err != nil {
+		t.Fatal(err)
+	}
+	marshaled, marshalErr := json.Marshal(got)
+	if marshalErr != nil || strings.Contains(string(marshaled), "version") {
+		t.Fatalf("got %s, %v", marshaled, marshalErr)
+	}
+}
+
 func TestAttestBytesHashTheBase64StringAsSent(t *testing.T) {
 	c, rec := signingServer(t, vectorSeed())
 	_, err := c.Attest(context.Background(), &AttestRequest{Payload: []byte{0xff, 0xfe, 0x00}, ProgramID: vectorProgramID,
@@ -236,6 +297,61 @@ func TestProviderHelpersSign(t *testing.T) {
 }
 
 // The server hashes what it decodes, so these all hash the wire value.
+func TestProviderHelpersAcceptAJobLikeAttest(t *testing.T) {
+	second := strings.Repeat("b", 64)
+	first := strings.Repeat("a", 64)
+	link := &JobLink{JobID: "loan-1", StepID: "answer", PreviousRecordHashes: []string{second, first}, Final: true}
+	for name, call := range map[string]func(*Client, ...ProviderOption) (*ExecuteResponse, error){
+		"claude": func(c *Client, opts ...ProviderOption) (*ExecuteResponse, error) {
+			return c.AttestClaudeResponse(context.Background(), vectorProgramID, vectorRouteID, vectorRegistry, "p", "r", opts...)
+		},
+		"openai": func(c *Client, opts ...ProviderOption) (*ExecuteResponse, error) {
+			return c.AttestOpenAIResponse(context.Background(), vectorProgramID, vectorRouteID, vectorRegistry, "p", "r", opts...)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, seen := parityServer(t, Config{SigningKey: vectorSeed()}, 200, `{"ok":true,"record_hash":"abc"}`)
+			out, err := call(c, WithJob(link))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sent := wireBody{}
+			if decodeErr := json.Unmarshal((*seen)[0].Body, &sent); decodeErr != nil {
+				t.Fatal(decodeErr)
+			}
+			verifyWire(t, sent, vectorPublic(t))
+			inner, signedErr := decodeSigned(sent)
+			if signedErr != nil {
+				t.Fatal(signedErr)
+			}
+			if inner.Job == nil || inner.Job.StepID != "answer" || !inner.Job.Final || inner.Job.PreviousRecordHashes[0] != first {
+				t.Fatalf("job = %+v", inner.Job)
+			}
+			if out.RecordHash != "abc" || out.SignedRequest != sent.SignedRequest {
+				t.Fatalf("result = %+v", out)
+			}
+
+			refusing, _ := parityServer(t, Config{SigningKey: vectorSeed()}, 422, `{"error":"halted","record_hash":"def"}`)
+			_, refusedErr := call(refusing, WithJob(link))
+			var apiErr *APIError
+			if !errors.As(refusedErr, &apiErr) || apiErr.RecordHash != "def" || apiErr.SignedRequest == "" {
+				t.Fatalf("err = %#v", refusedErr)
+			}
+
+			plain, plainSeen := parityServer(t, Config{}, 200, `{"ok":true}`)
+			if _, plainErr := call(plain); plainErr != nil {
+				t.Fatal(plainErr)
+			}
+			if strings.Contains(string((*plainSeen)[0].Body), `"job"`) {
+				t.Fatalf("body = %s", (*plainSeen)[0].Body)
+			}
+			if _, badErr := call(plain, WithJob(&JobLink{JobID: "bad id", StepID: "s"})); badErr == nil || len(*plainSeen) != 1 {
+				t.Fatalf("err = %v, requests = %d", badErr, len(*plainSeen))
+			}
+		})
+	}
+}
+
 func TestSignatureCoversTheValuesAsDecoded(t *testing.T) {
 	for name, req := range map[string]*ExecuteRequest{
 		"non-ascii":          {PayloadText: "caf\u00e9 \u4e16\u754c \U0001f600"},

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,7 +21,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/1.0.0"
+	UserAgent      = "verdifax-sdk-go/1.1.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -98,16 +99,20 @@ type Client struct {
 	apiKey     string
 	httpClient *http.Client
 	userAgent  string
-	signer     *requestSigner
+
+	// signer holds the key in use, nil once ClearRequestKey succeeds or
+	// when the client never had one. It sits behind a pointer so a
+	// printed Client shows an address and not the key.
+	signer *atomic.Pointer[requestSigner]
 }
 
 // NewClient validates the config and returns a Client. Returns
 // an error when the config is missing required fields.
 func NewClient(cfg Config) (*Client, error) {
 	c := &Client{
-		baseURL:    strings.TrimRight(cfg.BaseURL, "/"),
-		apiKey:     cfg.APIKey,
-		userAgent:  cfg.UserAgent,
+		baseURL:   strings.TrimRight(cfg.BaseURL, "/"),
+		apiKey:    cfg.APIKey,
+		userAgent: cfg.UserAgent,
 	}
 	if c.baseURL == "" {
 		c.baseURL = DefaultBaseURL
@@ -119,7 +124,8 @@ func NewClient(cfg Config) (*Client, error) {
 	if signerErr != nil {
 		return nil, signerErr
 	}
-	c.signer = signer
+	c.signer = &atomic.Pointer[requestSigner]{}
+	c.signer.Store(signer)
 	if cfg.HTTPClient != nil {
 		// Caller-supplied client: use as-is, no retry wrap.
 		c.httpClient = cfg.HTTPClient
@@ -201,7 +207,8 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body, out a
 		errMsg := strings.TrimSpace(string(respBytes))
 		// Try to extract the orchestrator's structured error message.
 		var envelope struct {
-			Error string `json:"error"`
+			Error      string `json:"error"`
+			RecordHash string `json:"record_hash"`
 		}
 		if json.Unmarshal(respBytes, &envelope) == nil && envelope.Error != "" {
 			errMsg = envelope.Error
@@ -212,7 +219,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body, out a
 		case http.StatusNotFound:
 			return &NotFoundError{Path: path, Message: errMsg}
 		default:
-			return &APIError{Status: resp.StatusCode, Path: path, Message: errMsg}
+			return &APIError{Status: resp.StatusCode, Path: path, Message: errMsg, RecordHash: envelope.RecordHash}
 		}
 	}
 

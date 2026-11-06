@@ -42,19 +42,32 @@ func (c *Client) Version(ctx context.Context) (*Version, error) {
 // when they retrieve the run later.
 // On budget halt (CCV/MACC): HTTP 422 + an *APIError; the run is
 // still persisted and retrievable via GetRun.
+// A refused or halted run has its receipt hash in the error's
+// RecordHash and, when signed, the signed text in its SignedRequest.
 func (c *Client) Execute(ctx context.Context, req *ExecuteRequest) (*ExecuteResponse, error) {
 	if checkErr := c.checkExecuteRequest(req); checkErr != nil {
 		return nil, checkErr
 	}
-	body, signErr := c.prepareExecute(req)
-	if signErr != nil {
-		return nil, signErr
+	prepared, prepareErr := c.prepareExecute(req)
+	if prepareErr != nil {
+		return nil, prepareErr
 	}
 	out := &ExecuteResponse{}
-	if err := c.doRequest(ctx, "POST", "/execute", body, out); err != nil {
-		return nil, err
+	if executeErr := c.doRequest(ctx, "POST", "/execute", prepared.body, out); executeErr != nil {
+		return nil, withSignedText(executeErr, prepared.signedText)
 	}
+	out.SignedRequest = prepared.signedText
 	return out, nil
+}
+
+// withSignedText puts the signed text on an *APIError, so a refused or
+// halted run can still be checked against what was signed.
+func withSignedText(callErr error, signedText string) error {
+	var apiErr *APIError
+	if signedText != "" && errors.As(callErr, &apiErr) {
+		apiErr.SignedRequest = signedText
+	}
+	return callErr
 }
 
 // checkExecuteRequest applies the checks every single-payload request

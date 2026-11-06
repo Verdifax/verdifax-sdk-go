@@ -23,11 +23,16 @@ type ExecuteBatchResponse struct {
 // ExecuteBatchResult is one row of an ExecuteBatchResponse. A
 // successful row has Manifest. A failed row has Error, and ErrorStage
 // and a typed receipt when the pipeline halted. A row refused before
-// it ran has no RunID.
+// it ran has no RunID. RecordHash is the row's manifest or receipt hash.
+// SignedRequest is the exact text signed for this row, filled in by the
+// client when it signed, which a customer can keep for verdifax-verify
+// --request.
 type ExecuteBatchResult struct {
 	Index                 int                `json:"index"`
 	OK                    bool               `json:"ok"`
 	RunID                 int64              `json:"run_id,omitempty"`
+	RecordHash            Hex64              `json:"record_hash,omitempty"`
+	SignedRequest         string             `json:"signed_request,omitempty"`
 	ManifestHash          Hex64              `json:"manifest_hash,omitempty"`
 	Manifest              *ExecutionManifest `json:"manifest,omitempty"`
 	Error                 string             `json:"error,omitempty"`
@@ -45,7 +50,8 @@ type ExecuteBatchResult struct {
 // SigningKey each row carries its own signature and nonce. A row that
 // fails comes back in Results with OK false, so it is not an error
 // here. The rows are not checked first: the server reports a bad row
-// in that row's result.
+// in that row's result. The one exception is a job block, whose names
+// are checked here, and a bad one stops the batch before it is sent.
 //
 // This is one POST and it is never retried. After a timeout the server
 // may have run some or all of the rows.
@@ -59,20 +65,25 @@ func (c *Client) ExecuteBatch(ctx context.Context, runs []ExecuteRequest) (*Exec
 	if len(runs) > MaxBatchRows {
 		return nil, fmt.Errorf("verdifax: ExecuteBatch accepts at most %d runs (got %d)", MaxBatchRows, len(runs))
 	}
-	rows := make([]*ExecuteRequest, len(runs))
+	rows := make([]any, len(runs))
+	signedTexts := make([]string, len(runs))
 	for i := range runs {
-		row, signErr := c.prepareExecute(&runs[i])
-		if signErr != nil {
-			return nil, signErr
+		row, prepareErr := c.prepareExecute(&runs[i])
+		if prepareErr != nil {
+			return nil, prepareErr
 		}
-		rows[i] = row
+		rows[i], signedTexts[i] = row.body, row.signedText
 	}
 	body := struct {
-		Runs []*ExecuteRequest `json:"runs"`
+		Runs []any `json:"runs"`
 	}{Runs: rows}
 	out := &ExecuteBatchResponse{}
 	if batchErr := c.doRequest(ctx, "POST", "/execute/batch", body, out); batchErr != nil {
 		return nil, batchErr
+	}
+	// The server answers each row at its own position in Results.
+	for i := range min(len(out.Results), len(signedTexts)) {
+		out.Results[i].SignedRequest = signedTexts[i]
 	}
 	return out, nil
 }
@@ -105,22 +116,29 @@ type VerifyDeterminismResponse struct {
 	First         DeterminismRun  `json:"first"`
 	Second        DeterminismRun  `json:"second"`
 	Diff          DeterminismDiff `json:"diff"`
+
+	// SignedRequest is the exact text signed for this call, filled in
+	// by the client when it signed. Keep it for verdifax-verify
+	// --request.
+	SignedRequest string `json:"signed_request,omitempty"`
 }
 
 // VerifyDeterminism runs one payload twice on the server and compares
 // the manifest hashes. One signature covers the request, and the
-// server claims its nonce once. Both runs are recorded.
+// server claims its nonce once. Both runs are recorded. It runs twice,
+// so the server refuses a request with a Job.
 func (c *Client) VerifyDeterminism(ctx context.Context, req *ExecuteRequest) (*VerifyDeterminismResponse, error) {
 	if checkErr := c.checkExecuteRequest(req); checkErr != nil {
 		return nil, checkErr
 	}
-	body, signErr := c.prepareExecute(req)
-	if signErr != nil {
-		return nil, signErr
+	prepared, prepareErr := c.prepareExecute(req)
+	if prepareErr != nil {
+		return nil, prepareErr
 	}
 	out := &VerifyDeterminismResponse{}
-	if verifyErr := c.doRequest(ctx, "POST", "/execute/verify-determinism", body, out); verifyErr != nil {
-		return nil, verifyErr
+	if verifyErr := c.doRequest(ctx, "POST", "/execute/verify-determinism", prepared.body, out); verifyErr != nil {
+		return nil, withSignedText(verifyErr, prepared.signedText)
 	}
+	out.SignedRequest = prepared.signedText
 	return out, nil
 }

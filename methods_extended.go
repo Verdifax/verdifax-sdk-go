@@ -48,6 +48,9 @@ type AttestRequest struct {
 	AuthorizationChain    map[string]any
 	RegulatoryScaffolding map[string]any
 	CausalGraph           map[string]any
+
+	// Job places this run in a job. Job.Step fills it in for you.
+	Job *JobLink
 }
 
 // Attest is the high-level convenience wrapper around Execute.
@@ -76,11 +79,12 @@ func (c *Client) Attest(ctx context.Context, req *AttestRequest) (*ExecuteRespon
 	}
 
 	body := &ExecuteRequest{
-		ProgramID:          req.ProgramID,
-		RouteID:             req.RouteID,
-		RegistryRecordHash: req.RegistryRecordHash,
-		AIOutputText:       req.AIOutputText,
-		AttestedContext:    req.AttestedContext,
+		ProgramID:              req.ProgramID,
+		RouteID:                req.RouteID,
+		RegistryRecordHash:     req.RegistryRecordHash,
+		AIOutputText:           req.AIOutputText,
+		Job:                    req.Job,
+		AttestedContext:        req.AttestedContext,
 		ReproducibilityContext: req.ReproducibilityContext,
 		RequestSubstance:       req.RequestSubstance,
 		AuthorizationChain:     req.AuthorizationChain,
@@ -302,8 +306,8 @@ func (c *Client) AdminErase(ctx context.Context, req *AdminEraseRequest) (*Delet
 		return nil, fmt.Errorf("verdifax: FieldPath is required")
 	}
 	var out struct {
-		OK       bool             `json:"ok"`
-		Receipt  DeletionReceipt  `json:"deletion_receipt"`
+		OK      bool            `json:"ok"`
+		Receipt DeletionReceipt `json:"deletion_receipt"`
 	}
 	if err := c.doRequest(ctx, "POST", "/admin/erase", req, &out); err != nil {
 		return nil, err

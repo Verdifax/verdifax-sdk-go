@@ -68,6 +68,7 @@ func main() {
 | `Attest(ctx, req)` | `POST /execute` | required |
 | `AttestClaudeResponse(ctx, ...)` | `POST /execute` | required |
 | `AttestOpenAIResponse(ctx, ...)` | `POST /execute` | required |
+| `job.Step(ctx, stepID, req, opts...)` | `POST /execute` | required |
 | `ExecuteBatch(ctx, runs)` | `POST /execute/batch` | required |
 | `VerifyDeterminism(ctx, req)` | `POST /execute/verify-determinism` | required |
 | `GetRun(ctx, id)` | `GET /runs/{id}` | required |
@@ -93,11 +94,15 @@ func main() {
 | `GetPublicBundleByToken(ctx, token)` | `GET /public/runs/{token}/bundle.json` | none |
 | `DCAEVerify(ctx, bundle)` | `POST /dcae/verify` | none |
 | `RegisterRequestKey(ctx)` | `POST /keys/request-key` | required |
+| `RotateRequestKey(ctx, newKey)` | `POST /keys/request-key` | required |
 | `ClearRequestKey(ctx)` | `DELETE /keys/request-key` | required |
 | `AdminCreateKey(ctx, name)` | `POST /admin/keys` | admin |
 | `AdminListKeys(ctx)` | `GET /admin/keys` | admin |
 | `AdminRevokeKey(ctx, id)` | `DELETE /admin/keys/{id}` | admin |
+| `AdminClearRequestKey(ctx, id)` | `DELETE /admin/keys/{id}/request-key` | admin |
 | `AdminErase(ctx, req)` | `POST /admin/erase` | admin |
+
+`client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
 These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
 
@@ -163,7 +168,53 @@ if export.Truncated {
 }
 ```
 
+Set `JobID` on `ExportRunsParams` to export the runs of one job. New rows carry `AnchorSource`, `JobID` and `StepID`.
+
 The export states what the server stored, not a verdict. A call that never reached Verdifax cannot appear in it. Both forms say when a period holds more rows than the export returned: check `Truncated`. `ExportRunsCSV` reads `Total` and `Truncated` from the `X-Verdifax-Total` and `X-Verdifax-Truncated` response headers, and returns an error if the server does not send them. In the CSV, a `route_id` that a spreadsheet could read as a formula gets a leading `'`.
+
+## Jobs
+
+A job is a map of sealed steps. Each step names the records it directly follows, so work can split into branches and join again, and a missing or swapped step is visible.
+
+`client.Job` returns a `Job`, and `Step` takes everything `Attest` takes. This example runs one step, two after it, and a final step joining them:
+
+```go
+job, err := client.Job("loan-1")
+if err != nil {
+    log.Fatal(err)
+}
+
+step := func(text string) *verdifax.AttestRequest {
+    return &verdifax.AttestRequest{ProgramID: programID, RouteID: routeID, RegistryRecordHash: recordHash, PayloadText: text}
+}
+
+if _, err := job.Step(ctx, "intake", step("application received")); err != nil {
+    log.Fatal(err)
+}
+if _, err := job.Step(ctx, "credit", step("credit check"), verdifax.WithAfter("intake")); err != nil {
+    log.Fatal(err)
+}
+if _, err := job.Step(ctx, "fraud", step("fraud check"), verdifax.WithAfter("intake")); err != nil {
+    log.Fatal(err)
+}
+if _, err := job.Step(ctx, "decide", step("decision"), verdifax.WithAfter("credit", "fraud"), verdifax.WithFinal()); err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println(job.RecordHashes())
+```
+
+Without `WithAfter`, a step follows the step run just before it through this `Job`, and the first step follows nothing. `WithAfter()` with no names starts another root step, which follows nothing. Naming a step this `Job` has no record for is refused before anything is sent. `WithExternalPrevious` names records from another account by hash.
+
+`RecordHashes` maps each step id to its record hash, refused and halted steps included. On a client with a `SigningKey`, `SignedRequests` maps each of those step ids to the exact text signed for it. When a step is refused or halted, `Step` records the receipt hash and the signed text from the error, then returns the same error `Attest` returns, with them in `APIError.RecordHash` and `APIError.SignedRequest`. A later step can name that step.
+
+A step that sealed nothing, such as a timeout or a 409, is not recorded and does not change the default `after`. If a successful response has no `record_hash`, `Step` uses its manifest hash. If it has neither, `Step` returns the response together with an error, so the map never silently gets a gap.
+
+A job name or step name is 1 to 128 letters, digits, dots, underscores, colons or dashes, and the SDK refuses any other before sending.
+
+To place a run in a job yourself, set `Job` to a `JobLink` on an `ExecuteRequest`, an `AttestRequest` or a batch row, or pass `verdifax.WithJob(link)` to a provider helper. The SDK sorts `PreviousRecordHashes` and `ExternalPrevious` and removes repeats. Decoding a `JobLink` from JSON refuses an unknown field, a null, a `final` that is not a boolean and a hash list that is not a list, so a typo cannot silently drop a link. `RecordHash` on the response and on each batch result is the hash to name in the next step. `VerifyDeterminism` runs twice, so the server refuses a job there.
+
+A job map covers what was sent. It cannot show a step that was never sent.
 
 ## Provider helpers
 
@@ -176,6 +227,8 @@ run, err := client.AttestClaudeResponse(ctx, programID, routeID, recordHash,
 ```
 
 The helpers no longer send AI output for review unless you ask, which changes earlier behavior. Pass `verdifax.WithGovern()` to also send the response text as `AIOutputText` for the AIVP review, which runs on Anthropic in production.
+
+Pass `verdifax.WithJob(link)` to place the response in a job. `RecordHash` and `SignedRequest` come back as they do from `Attest`, and on the `APIError` of a refused or halted run.
 
 ## Optional execute fields
 
@@ -245,7 +298,18 @@ run, err := client.Execute(ctx, &verdifax.ExecuteRequest{
     PayloadText:        "first signed attestation",
 })
 
-// Stops requiring signatures on this API key.
+// Replaces the key. The current key approves the change, and this client
+// then signs with the new key.
+_, newKey, err := verdifax.GenerateRequestKey()
+if err != nil {
+    log.Fatal(err)
+}
+if _, err := client.RotateRequestKey(ctx, newKey); err != nil {
+    log.Fatal(err)
+}
+
+// Stops requiring signatures on this API key. The current key approves it,
+// and this client then drops its key and sends unsigned requests.
 err = client.ClearRequestKey(ctx)
 ```
 
@@ -255,7 +319,11 @@ Registering a key changes that API key for every client that uses it: the server
 
 In a batch each row carries its own signature and nonce, and the server checks them as it reaches that row. A row refused for its signature comes back in `Results`, so a repeated batch returns HTTP 200 with failed rows, and a row reached more than five minutes after it was signed fails the same way. A determinism check uses one signature for the request, and repeating it returns HTTP 403.
 
-The signature shows the holder of the key requested the run. It does not show the key holder accepted the outcome.
+The SDK signs in version 2: it serializes the request once and signs those exact bytes, which also cover any job block. A signed call sends only `signed_request`, that text as a string, and `request_signature`. `SignedRequest` on the response, on each batch result, on a determinism response and on the `APIError` of a refused or halted run holds the exact text. To check a record against it, save it unchanged to a file and pass the file to `verdifax-verify --request FILE`. `SignRequest` still returns the version 1 form, which cannot carry a job.
+
+Once a key is registered, the server needs that key's approval to replace or clear it, so `RotateRequestKey` and `ClearRequestKey` need the current key as `Config.SigningKey`. If `RotateRequestKey` times out, the server may have made the change, so try the new key. After `ClearRequestKey` succeeds, the client drops its signing key and sends unsigned requests, because the server refuses a signature on an API key with no registered key. `AdminClearRequestKey` clears the key on an API key by ID, for a holder who lost it. The ID can name any API key, so the calling client keeps its own signing key.
+
+A signature shows who requested the run, not that they accepted the outcome.
 
 ## Trust model
 
