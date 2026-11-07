@@ -299,77 +299,25 @@ func PolicyActivationApproval(key SigningKey, chainID, documentHash, previousHas
 // Nothing changes until the document is activated with ActivatePolicy.
 // Verdifax did not write, review or approve the policy.
 func (c *Client) UploadPolicy(ctx context.Context, document string) (*Policy, error) {
-	if keyErr := c.requireAPIKey(); keyErr != nil {
-		return nil, keyErr
-	}
-	if textErr := checkPolicyText(document); textErr != nil {
-		return nil, textErr
-	}
-	body := struct {
-		Document string `json:"document"`
-	}{Document: document}
-	out := &Policy{}
-	if uploadErr := c.doRequest(ctx, "POST", policiesPath, body, out); uploadErr != nil {
-		return nil, uploadErr
-	}
-	return out, nil
+	return c.uploadPolicyAt(ctx, policiesPath, document)
 }
 
 // ListPolicies lists this key's documents, with the chain of its changes
 // and the newest change in it.
 func (c *Client) ListPolicies(ctx context.Context) (*PolicyList, error) {
-	if keyErr := c.requireAPIKey(); keyErr != nil {
-		return nil, keyErr
-	}
-	out := &PolicyList{}
-	if listErr := c.doRequest(ctx, "GET", policiesPath, nil, out); listErr != nil {
-		return nil, listErr
-	}
-	return out, nil
+	return c.listPoliciesAt(ctx, policiesPath)
 }
 
 // GetPolicy returns one of this key's documents with its exact text.
 // documentHash must be 64 lowercase hex characters.
 func (c *Client) GetPolicy(ctx context.Context, documentHash string) (*Policy, error) {
-	if keyErr := c.requireAPIKey(); keyErr != nil {
-		return nil, keyErr
-	}
-	if hashErr := ValidateHex64(documentHash, "document_hash"); hashErr != nil {
-		return nil, hashErr
-	}
-	out := &Policy{}
-	if getErr := c.doRequest(ctx, "GET", policiesPath+"/"+documentHash, nil, out); getErr != nil {
-		return nil, getErr
-	}
-	return out, nil
+	return c.getPolicyAt(ctx, policiesPath, documentHash)
 }
 
 // TestPolicy shows which rule would fire on req.Inputs, under req.Document
 // or the stored req.DocumentHash: exactly one of the two. It seals nothing.
 func (c *Client) TestPolicy(ctx context.Context, req *PolicyTestRequest) (*PolicyTestResult, error) {
-	if keyErr := c.requireAPIKey(); keyErr != nil {
-		return nil, keyErr
-	}
-	if req == nil {
-		return nil, errors.New("verdifax: PolicyTestRequest is required")
-	}
-	if (req.Document == "") == (req.DocumentHash == "") {
-		return nil, errors.New("verdifax: TestPolicy needs exactly one of Document and DocumentHash")
-	}
-	if req.Document != "" {
-		if textErr := checkPolicyText(req.Document); textErr != nil {
-			return nil, textErr
-		}
-	}
-	body := *req
-	if body.Inputs == nil {
-		body.Inputs = map[string]any{}
-	}
-	out := &PolicyTestResult{}
-	if testErr := c.doRequest(ctx, "POST", policiesPath+"/test", body, out); testErr != nil {
-		return nil, testErr
-	}
-	return out, nil
+	return c.testPolicyAt(ctx, policiesPath, "TestPolicy", req)
 }
 
 // GetPolicyHistory returns the chain of this key's policy changes, oldest
@@ -396,13 +344,98 @@ func (c *Client) GetPolicyHistory(ctx context.Context) ([]byte, error) {
 // another change came first, or the document is not yet effective. It is
 // not retried: read the chain again before deciding to repeat the change.
 func (c *Client) ActivatePolicy(ctx context.Context, documentHash string) (*PolicyActivation, error) {
+	return c.activatePolicyAt(ctx, policiesPath, documentHash, false)
+}
+
+// uploadPolicyAt stores document under base, /policies for this key's
+// policies or /account/policies for its account's.
+func (c *Client) uploadPolicyAt(ctx context.Context, base, document string) (*Policy, error) {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return nil, keyErr
+	}
+	if textErr := checkPolicyText(document); textErr != nil {
+		return nil, textErr
+	}
+	body := struct {
+		Document string `json:"document"`
+	}{Document: document}
+	out := &Policy{}
+	if uploadErr := c.doRequest(ctx, "POST", base, body, out); uploadErr != nil {
+		return nil, uploadErr
+	}
+	return out, nil
+}
+
+// listPoliciesAt lists the documents under base.
+func (c *Client) listPoliciesAt(ctx context.Context, base string) (*PolicyList, error) {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return nil, keyErr
+	}
+	out := &PolicyList{}
+	if listErr := c.doRequest(ctx, "GET", base, nil, out); listErr != nil {
+		return nil, listErr
+	}
+	return out, nil
+}
+
+// getPolicyAt reads one document under base.
+func (c *Client) getPolicyAt(ctx context.Context, base, documentHash string) (*Policy, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
 	}
 	if hashErr := ValidateHex64(documentHash, "document_hash"); hashErr != nil {
 		return nil, hashErr
 	}
-	chain, listErr := c.ListPolicies(ctx)
+	out := &Policy{}
+	if getErr := c.doRequest(ctx, "GET", base+"/"+documentHash, nil, out); getErr != nil {
+		return nil, getErr
+	}
+	return out, nil
+}
+
+// testPolicyAt tries req under base. method names the caller in errors.
+func (c *Client) testPolicyAt(ctx context.Context, base, method string, req *PolicyTestRequest) (*PolicyTestResult, error) {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return nil, keyErr
+	}
+	if req == nil {
+		return nil, errors.New("verdifax: PolicyTestRequest is required")
+	}
+	if (req.Document == "") == (req.DocumentHash == "") {
+		return nil, fmt.Errorf("verdifax: %s needs exactly one of Document and DocumentHash", method)
+	}
+	if req.Document != "" {
+		if textErr := checkPolicyText(req.Document); textErr != nil {
+			return nil, textErr
+		}
+	}
+	body := *req
+	if body.Inputs == nil {
+		body.Inputs = map[string]any{}
+	}
+	out := &PolicyTestResult{}
+	if testErr := c.doRequest(ctx, "POST", base+"/test", body, out); testErr != nil {
+		return nil, testErr
+	}
+	return out, nil
+}
+
+// activatePolicyAt reads the chain with GET base, then sends the change
+// naming its newest change. With mustSign, a client without a SigningKey is
+// refused before anything is sent, because the server refuses the change
+// unsigned.
+func (c *Client) activatePolicyAt(ctx context.Context, base, documentHash string, mustSign bool) (*PolicyActivation, error) {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return nil, keyErr
+	}
+	if hashErr := ValidateHex64(documentHash, "document_hash"); hashErr != nil {
+		return nil, hashErr
+	}
+	signer := c.signer.Load()
+	if mustSign && signer == nil {
+		return nil, ErrSigningKeyRequired
+	}
+	chain, listErr := c.listPoliciesAt(ctx, base)
 	if listErr != nil {
 		return nil, listErr
 	}
@@ -410,9 +443,9 @@ func (c *Client) ActivatePolicy(ctx context.Context, documentHash string) (*Poli
 		PreviousActivationHash string                     `json:"previous_activation_hash"`
 		Signature              *PolicyActivationSignature `json:"signature,omitempty"`
 	}{PreviousActivationHash: chain.NewestActivationHash}
-	if signer := c.signer.Load(); signer != nil {
+	if signer != nil {
 		if fieldsErr := checkActivationFields(chain.ChainID, documentHash, chain.NewestActivationHash); fieldsErr != nil {
-			return nil, fmt.Errorf("verdifax: GET /policies gave no chain to sign: %w", fieldsErr)
+			return nil, fmt.Errorf("verdifax: GET %s gave no chain to sign: %w", base, fieldsErr)
 		}
 		nonce, nonceErr := freshNonce()
 		if nonceErr != nil {
@@ -425,7 +458,7 @@ func (c *Client) ActivatePolicy(ctx context.Context, documentHash string) (*Poli
 		OK         bool              `json:"ok"`
 		Activation *PolicyActivation `json:"activation"`
 	}
-	if activateErr := c.doRequest(ctx, "POST", policiesPath+"/"+documentHash+"/activate", body, &out); activateErr != nil {
+	if activateErr := c.doRequest(ctx, "POST", base+"/"+documentHash+"/activate", body, &out); activateErr != nil {
 		return nil, activateErr
 	}
 	if out.Activation == nil {

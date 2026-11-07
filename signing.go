@@ -34,6 +34,7 @@ const (
 	requestKeyChangeForm     = "verdifax.request-key-change.v1"
 	jobForm                  = "verdifax.job.v1"
 	requestKeyPath           = "/keys/request-key"
+	accountRequestKeyPath    = "/account/request-key"
 
 	// signedAtLayout is RFC 3339 UTC with whole seconds.
 	signedAtLayout = "2006-01-02T15:04:05Z"
@@ -386,6 +387,12 @@ func (c *Client) prepareExecute(req *ExecuteRequest) (*preparedExecute, error) {
 // signature. Use RotateRequestKey to replace a registered key. Returns
 // ErrSigningKeyRequired without a SigningKey, or after ClearRequestKey.
 func (c *Client) RegisterRequestKey(ctx context.Context) (*RequestKeyRegistration, error) {
+	return c.registerRequestKeyAt(ctx, requestKeyPath)
+}
+
+// registerRequestKeyAt registers this client's public key at path,
+// /keys/request-key or /account/request-key.
+func (c *Client) registerRequestKeyAt(ctx context.Context, path string) (*RequestKeyRegistration, error) {
 	if err := c.requireAPIKey(); err != nil {
 		return nil, err
 	}
@@ -394,7 +401,7 @@ func (c *Client) RegisterRequestKey(ctx context.Context) (*RequestKeyRegistratio
 		return nil, ErrSigningKeyRequired
 	}
 	out := &RequestKeyRegistration{}
-	if err := c.doRequest(ctx, "POST", requestKeyPath, signer.registrationBody(), out); err != nil {
+	if err := c.doRequest(ctx, "POST", path, signer.registrationBody(), out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -444,12 +451,18 @@ func (c *Client) RotateRequestKey(ctx context.Context, newKey SigningKey) (*Requ
 // After an error it keeps the key. If the key holder lost the key, an
 // admin can use AdminClearRequestKey.
 func (c *Client) ClearRequestKey(ctx context.Context) error {
+	return c.clearRequestKeyAt(ctx, requestKeyPath)
+}
+
+// clearRequestKeyAt clears the registered public key at path,
+// /keys/request-key or /account/request-key.
+func (c *Client) clearRequestKeyAt(ctx context.Context, path string) error {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return keyErr
 	}
 	signer := c.signer.Load()
 	if signer == nil {
-		return c.doRequest(ctx, "DELETE", requestKeyPath, nil, nil)
+		return c.doRequest(ctx, "DELETE", path, nil, nil)
 	}
 	change, changeErr := signer.approveChange("")
 	if changeErr != nil {
@@ -458,7 +471,7 @@ func (c *Client) ClearRequestKey(ctx context.Context) error {
 	body := struct {
 		Change *RequestKeyChange `json:"change"`
 	}{Change: change}
-	if clearErr := c.doRequest(ctx, "DELETE", requestKeyPath, body, nil); clearErr != nil {
+	if clearErr := c.doRequest(ctx, "DELETE", path, body, nil); clearErr != nil {
 		return clearErr
 	}
 	c.signer.Store(nil)

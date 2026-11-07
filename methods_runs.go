@@ -2,6 +2,7 @@ package verdifax
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -11,6 +12,12 @@ import (
 const (
 	headerExportTotal     = "X-Verdifax-Total"
 	headerExportTruncated = "X-Verdifax-Truncated"
+)
+
+// Routes of the evidence export.
+const (
+	runsExportPath        = "/runs/export"
+	accountRunsExportPath = "/account/runs/export"
 )
 
 // SearchRunsParams shapes the optional filters for SearchRuns. Zero-
@@ -95,6 +102,29 @@ type RunsExport struct {
 	ByStatus map[string]int `json:"by_status"`
 
 	Runs []ExportRow `json:"runs"`
+
+	// PolicyDocuments is the exporting key's own policy documents with
+	// their exact text, set once the key has stored a policy.
+	PolicyDocuments []Policy `json:"policy_documents,omitempty"`
+
+	// PolicyHistory is the chain of the key's own policy changes, oldest
+	// first, as the exact JSON bytes the server sent.
+	PolicyHistory json.RawMessage `json:"policy_history,omitempty"`
+
+	// AccountID is the account the exporting key belongs to, as
+	// account-N. It is a label Verdifax assigned, not a verified company
+	// identity.
+	AccountID string `json:"account_id,omitempty"`
+
+	// AccountPolicyDocuments is the account's policy documents with their
+	// exact text, set once the account has stored a policy.
+	AccountPolicyDocuments []Policy `json:"account_policy_documents,omitempty"`
+
+	// AccountPolicyHistory is the chain of the account's policy changes,
+	// oldest first, as the exact JSON bytes the server sent, so a large
+	// number in an anchor is not rounded. Decode it into
+	// []PolicyActivation to read it.
+	AccountPolicyHistory json.RawMessage `json:"account_policy_history,omitempty"`
 }
 
 // ExportRow is one run in an evidence export: what the server stored,
@@ -113,6 +143,10 @@ type ExportRow struct {
 	AnchorSource           string `json:"anchor_source"`
 	JobID                  string `json:"job_id,omitempty"`
 	StepID                 string `json:"step_id,omitempty"`
+
+	// APIKeyID is the key that requested the run, so an account's export
+	// shows which of its keys made each run.
+	APIKeyID int64 `json:"api_key_id"`
 }
 
 // ExportRuns lists what the server holds for this key in a period,
@@ -120,11 +154,17 @@ type ExportRow struct {
 // period holds more. The list states what was stored, not a verdict,
 // and a call that never reached Verdifax cannot appear in it.
 func (c *Client) ExportRuns(ctx context.Context, params *ExportRunsParams) (*RunsExport, error) {
+	return c.exportRunsAt(ctx, runsExportPath, params)
+}
+
+// exportRunsAt reads the JSON form of the export at route,
+// /runs/export or /account/runs/export.
+func (c *Client) exportRunsAt(ctx context.Context, route string, params *ExportRunsParams) (*RunsExport, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
 	}
 	out := &RunsExport{}
-	if exportErr := c.doRequest(ctx, "GET", exportPath(params, "json"), nil, out); exportErr != nil {
+	if exportErr := c.doRequest(ctx, "GET", exportPath(route, params, "json"), nil, out); exportErr != nil {
 		return nil, exportErr
 	}
 	return out, nil
@@ -148,23 +188,29 @@ type RunsExportCSV struct {
 // error when the server does not send those headers, so that a cut-off
 // export cannot pass for a complete one.
 func (c *Client) ExportRunsCSV(ctx context.Context, params *ExportRunsParams) (*RunsExportCSV, error) {
+	return c.exportRunsCSVAt(ctx, runsExportPath, "ExportRuns", params)
+}
+
+// exportRunsCSVAt reads the CSV form of the export at route. jsonMethod
+// names the method that reads the JSON form, for the error.
+func (c *Client) exportRunsCSVAt(ctx context.Context, route, jsonMethod string, params *ExportRunsParams) (*RunsExportCSV, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
 	}
 	var raw rawResponse
-	if exportErr := c.doRequest(ctx, "GET", exportPath(params, "csv"), nil, &raw); exportErr != nil {
+	if exportErr := c.doRequest(ctx, "GET", exportPath(route, params, "csv"), nil, &raw); exportErr != nil {
 		return nil, exportErr
 	}
 	total, totalErr := strconv.ParseInt(raw.Header.Get(headerExportTotal), 10, 64)
 	truncated, truncatedErr := strconv.ParseBool(raw.Header.Get(headerExportTruncated))
 	if totalErr != nil || truncatedErr != nil {
-		return nil, fmt.Errorf("verdifax: the server did not report %s and %s, so this CSV may be cut off; use ExportRuns instead",
-			headerExportTotal, headerExportTruncated)
+		return nil, fmt.Errorf("verdifax: the server did not report %s and %s, so this CSV may be cut off; use %s instead",
+			headerExportTotal, headerExportTruncated, jsonMethod)
 	}
 	return &RunsExportCSV{CSV: string(raw.Body), Total: total, Truncated: truncated}, nil
 }
 
-func exportPath(params *ExportRunsParams, format string) string {
+func exportPath(route string, params *ExportRunsParams, format string) string {
 	q := url.Values{}
 	if params != nil {
 		setQuery(q, "from", params.From)
@@ -172,7 +218,7 @@ func exportPath(params *ExportRunsParams, format string) string {
 		setQuery(q, "job_id", params.JobID)
 	}
 	q.Set("format", format)
-	return "/runs/export?" + q.Encode()
+	return route + "?" + q.Encode()
 }
 
 // setQuery sets name unless value is empty, so the server applies its

@@ -3,6 +3,7 @@ package verdifax
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -120,6 +121,11 @@ type ListRunsParams struct {
 // Returns a slice of summary records (without full ManifestJSON)
 // plus the total count for pagination.
 func (c *Client) ListRuns(ctx context.Context, params *ListRunsParams) ([]RunSummary, int64, error) {
+	return c.listRunsAt(ctx, "/runs", params)
+}
+
+// listRunsAt fetches a page of runs from path, /runs or /account/runs.
+func (c *Client) listRunsAt(ctx context.Context, path string, params *ListRunsParams) ([]RunSummary, int64, error) {
 	if err := c.requireAPIKey(); err != nil {
 		return nil, 0, err
 	}
@@ -132,7 +138,6 @@ func (c *Client) ListRuns(ctx context.Context, params *ListRunsParams) ([]RunSum
 			q.Set("offset", strconv.Itoa(params.Offset))
 		}
 	}
-	path := "/runs"
 	if encoded := q.Encode(); encoded != "" {
 		path += "?" + encoded
 	}
@@ -151,7 +156,11 @@ func (c *Client) ListRuns(ctx context.Context, params *ListRunsParams) ([]RunSum
 // /runs/search responses. Excludes the heavy ManifestJSON; call
 // GetRun for the full sealed manifest.
 type RunSummary struct {
-	ID           int64  `json:"id"`
+	ID int64 `json:"id"`
+
+	// APIKeyID is the key that requested the run.
+	APIKeyID int64 `json:"api_key_id"`
+
 	CreatedAt    string `json:"created_at"`
 	ProgramID    Hex64  `json:"program_id"`
 	RouteID      string `json:"route_id"`
@@ -349,19 +358,44 @@ type AdminCreateKeyResponse struct {
 	Name   string `json:"name"`
 	Secret string `json:"secret"`
 	Hint   string `json:"hint"`
+
+	// AccountID is the account the key belongs to for life, as
+	// account-N.
+	AccountID string `json:"account_id,omitempty"`
+}
+
+// AdminCreateKeyOptions is the optional part of AdminCreateKey.
+type AdminCreateKeyOptions struct {
+	// AccountID puts the customer key in an existing account, by its
+	// number (7 for account-7). Zero leaves it out, and the key gets an
+	// account of its own. A key never moves to another account.
+	AccountID int64
 }
 
 // AdminCreateKey provisions a new API key with the given name.
-// Returns the secret exactly once, store it immediately.
-func (c *Client) AdminCreateKey(ctx context.Context, name string) (*AdminCreateKeyResponse, error) {
+// Returns the secret exactly once, store it immediately. Pass at most
+// one AdminCreateKeyOptions.
+func (c *Client) AdminCreateKey(ctx context.Context, name string, opts ...AdminCreateKeyOptions) (*AdminCreateKeyResponse, error) {
 	if err := c.requireAPIKey(); err != nil {
 		return nil, err
 	}
 	if name == "" {
 		return nil, fmt.Errorf("verdifax: name is required for AdminCreateKey")
 	}
+	if len(opts) > 1 {
+		return nil, errors.New("verdifax: AdminCreateKey takes at most one AdminCreateKeyOptions")
+	}
+	body := struct {
+		Name      string `json:"name"`
+		AccountID int64  `json:"account_id,omitempty"`
+	}{Name: name}
+	if len(opts) == 1 {
+		if opts[0].AccountID < 0 {
+			return nil, errors.New("verdifax: AccountID cannot be negative")
+		}
+		body.AccountID = opts[0].AccountID
+	}
 	out := &AdminCreateKeyResponse{}
-	body := map[string]string{"name": name}
 	if err := c.doRequest(ctx, "POST", "/admin/keys", body, out); err != nil {
 		return nil, err
 	}

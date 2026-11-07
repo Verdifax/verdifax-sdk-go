@@ -38,6 +38,10 @@ type signatureVector struct {
 	ActivationPreviousHash string `json:"activation_previous_hash"`
 	ActivationPreimageHex  string `json:"activation_preimage_hex"`
 	ActivationSignature    string `json:"activation_signature"`
+
+	AccountActivationChainID     string `json:"account_activation_chain_id"`
+	AccountActivationPreimageHex string `json:"account_activation_preimage_hex"`
+	AccountActivationSignature   string `json:"account_activation_signature"`
 }
 
 func loadSignatureVector(t *testing.T) signatureVector {
@@ -578,7 +582,7 @@ func TestUserAgentNamesTheVersion(t *testing.T) {
 	if _, healthErr := c.Health(context.Background()); healthErr == nil {
 		t.Fatal("expected the stop error")
 	}
-	if got != "verdifax-sdk-go/1.2.0" {
+	if got != "verdifax-sdk-go/1.3.0" {
 		t.Fatalf("user agent = %q", got)
 	}
 }

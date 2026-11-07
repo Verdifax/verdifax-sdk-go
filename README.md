@@ -104,11 +104,30 @@ func main() {
 | `RegisterRequestKey(ctx)` | `POST /keys/request-key` | required |
 | `RotateRequestKey(ctx, newKey)` | `POST /keys/request-key` | required |
 | `ClearRequestKey(ctx)` | `DELETE /keys/request-key` | required |
-| `AdminCreateKey(ctx, name)` | `POST /admin/keys` | admin |
+| `GetAccount(ctx)` | `GET /account` | owner |
+| `CreateAccountKey(ctx, req)` | `POST /account/keys` | owner |
+| `ListAccountKeys(ctx)` | `GET /account/keys` | owner |
+| `RevokeAccountKey(ctx, id)` | `DELETE /account/keys/{id}` | owner |
+| `RegisterAccountRequestKey(ctx)` | `POST /account/request-key` | owner |
+| `ClearAccountRequestKey(ctx)` | `DELETE /account/request-key` | owner |
+| `ListAccountRuns(ctx, params)` | `GET /account/runs` | owner |
+| `ExportAccountRuns(ctx, params)` | `GET /account/runs/export` | owner |
+| `ExportAccountRunsCSV(ctx, params)` | `GET /account/runs/export?format=csv` | owner |
+| `UploadAccountPolicy(ctx, document)` | `POST /account/policies` | owner |
+| `ListAccountPolicies(ctx)` | `GET /account/policies` | owner |
+| `GetAccountPolicy(ctx, documentHash)` | `GET /account/policies/{document_hash}` | owner |
+| `TestAccountPolicy(ctx, req)` | `POST /account/policies/test` | owner |
+| `GetAccountPolicyHistory(ctx)` | `GET /account/policies/history` | owner |
+| `ActivateAccountPolicy(ctx, documentHash)` | `GET /account/policies`, then `POST /account/policies/{document_hash}/activate` | owner |
+| `AdminCreateKey(ctx, name, opts...)` | `POST /admin/keys` | admin |
 | `AdminListKeys(ctx)` | `GET /admin/keys` | admin |
 | `AdminRevokeKey(ctx, id)` | `DELETE /admin/keys/{id}` | admin |
 | `AdminClearRequestKey(ctx, id)` | `DELETE /admin/keys/{id}/request-key` | admin |
 | `AdminErase(ctx, req)` | `POST /admin/erase` | admin |
+| `AdminCreateAccount(ctx, req)` | `POST /admin/accounts` | admin |
+| `AdminListAccounts(ctx)` | `GET /admin/accounts` | admin |
+
+"owner" means the account's owner key. See [Accounts](#accounts).
 
 `client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
@@ -176,7 +195,7 @@ if export.Truncated {
 }
 ```
 
-Set `JobID` on `ExportRunsParams` to export the runs of one job. New rows carry `AnchorSource`, `JobID` and `StepID`.
+Set `JobID` on `ExportRunsParams` to export the runs of one job. New rows carry `AnchorSource`, `JobID` and `StepID`. Each row carries `APIKeyID`, the key that requested the run, which is the last CSV column, after `step_id`. Each `RunSummary` from `ListRuns`, `SearchRuns` and `ListAccountRuns` carries it too.
 
 The export states what the server stored, not a verdict. A call that never reached Verdifax cannot appear in it. Both forms say when a period holds more rows than the export returned: check `Truncated`. `ExportRunsCSV` reads `Total` and `Truncated` from the `X-Verdifax-Total` and `X-Verdifax-Truncated` response headers, and returns an error if the server does not send them. In the CSV, a `route_id` that a spreadsheet could read as a formula gets a leading `'`.
 
@@ -301,6 +320,75 @@ Then run `verdifax-verify --policy-history policy-history.json` on the saved fil
 A policy judges what you declared. It cannot show the declared facts are true.
 
 A refusal stops the action only if your system waits for the answer.
+
+## Accounts
+
+An account is a company. Every API key belongs to one account for life. The account's owner key manages the account: it creates and revokes member keys, sets the account policy and reads the runs of every key in the account. An owner key cannot run anything: the server refuses it with HTTP 403 on every route outside `/account` that takes an API key, which comes back as an `*APIError`. Member keys are the keys that run. On a trial account, a member key needs a request key before it can run, as every trial key does.
+
+```go
+// An admin creates the account and its first owner key. The secret is shown once.
+created, err := admin.AdminCreateAccount(ctx, &verdifax.AdminCreateAccountRequest{Name: "Acme", Tier: "production"})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(created.Account.AccountID, created.OwnerKey.Secret)
+
+// The owner signs every change to the account policy, so it needs a request key.
+_, ownerSigningKey, err := verdifax.GenerateRequestKey()
+if err != nil {
+    log.Fatal(err)
+}
+owner, err := verdifax.NewClient(verdifax.Config{APIKey: created.OwnerKey.Secret, SigningKey: ownerSigningKey})
+if err != nil {
+    log.Fatal(err)
+}
+if _, err := owner.RegisterAccountRequestKey(ctx); err != nil {
+    log.Fatal(err)
+}
+
+// The owner creates member keys. These are the keys that run.
+member, err := owner.CreateAccountKey(ctx, &verdifax.CreateAccountKeyRequest{Name: "payments-service"})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(member.ID, member.Secret)
+
+// The owner stores and activates the account policy.
+text, err := os.ReadFile("account-policy.json")
+if err != nil {
+    log.Fatal(err)
+}
+policy, err := owner.UploadAccountPolicy(ctx, string(text))
+if err != nil {
+    log.Fatal(err)
+}
+change, err := owner.ActivateAccountPolicy(ctx, policy.DocumentHash)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(change.ChainID, change.Sequence)
+
+// The owner exports the runs of every key in the account.
+evidence, err := owner.ExportAccountRuns(ctx, &verdifax.ExportRunsParams{From: "2026-11-01T00:00:00Z"})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(evidence.AccountID, evidence.Total, evidence.Truncated)
+```
+
+What an account is, and what it is not:
+
+- The account number, such as `account-7`, is a label Verdifax assigned. It is not a verified company identity.
+- An account policy is the customer's own. Verdifax did not write, review or approve it.
+- Every key in the account must pass the account policy on top of its own policy. A run is admitted only when both allow.
+- The account's view covers the runs its keys made through Verdifax, not runs made elsewhere.
+- An owner key cannot run anything.
+
+`ActivateAccountPolicy` reads `ChainID` (`account-N`) and `NewestActivationHash` with `GET /account/policies`, and signs the change over that chain with the `SigningKey`, as `ActivatePolicy` does. The server refuses an unsigned change to an account policy, so a client without a `SigningKey` gets `ErrSigningKeyRequired` before anything is sent. `PolicyActivationApproval` and `PolicyActivationPreimage` take the account chain the same way. `ClearAccountRequestKey` clears the owner key's request key. With none registered, the server refuses to activate an account policy.
+
+`ExportAccountRuns` returns a `RunsExport`, as `ExportRuns` does. Both carry `AccountID`, and `AccountPolicyDocuments` and `AccountPolicyHistory` once the account has stored a policy. `AccountPolicyHistory` and `GetAccountPolicyHistory` keep the exact JSON bytes the server sent, so save them unchanged. `RevokeAccountKey` returns a `*NotFoundError` for a key in another account and for an owner key.
+
+To put a new customer key in an existing account, an admin passes its number: `admin.AdminCreateKey(ctx, "payments-service", verdifax.AdminCreateKeyOptions{AccountID: 7})`. Without it, the key gets an account of its own. A key never moves to another account.
 
 ## Provider helpers
 

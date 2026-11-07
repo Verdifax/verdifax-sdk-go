@@ -2,6 +2,7 @@ package verdifax
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -94,8 +95,13 @@ type DeterminismRun struct {
 	ManifestHash string `json:"manifest_hash"`
 	BundleHash   string `json:"bundle_hash"`
 	DurationMS   int64  `json:"duration_ms"`
-	Status       string `json:"status"`
-	Error        string `json:"error,omitempty"`
+	// Status is ok, stage_error, or the refusal or halt kind, such as
+	// pepg_deny.
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+	// Receipt is the sealed receipt of a refused or halted run, as the
+	// exact JSON the server sent. The run's manifest hash covers its hash.
+	Receipt json.RawMessage `json:"receipt,omitempty"`
 }
 
 // DeterminismDiff says how the two runs of a determinism check
@@ -105,11 +111,14 @@ type DeterminismDiff struct {
 	ManifestHashDiffers bool     `json:"manifest_hash_differs"`
 	BundleHashDiffers   bool     `json:"bundle_hash_differs"`
 	DifferingFields     []string `json:"differing_fields,omitempty"`
+	// Reason says why there is no verdict, when neither run sealed a
+	// record.
+	Reason string `json:"reason,omitempty"`
 }
 
 // VerifyDeterminismResponse is the body of POST
-// /execute/verify-determinism. Deterministic means both runs ended ok
-// with equal manifest hashes.
+// /execute/verify-determinism. Deterministic means both runs ended the
+// same way, completed or refused, with equal manifest hashes.
 type VerifyDeterminismResponse struct {
 	OK            bool            `json:"ok"`
 	Deterministic bool            `json:"deterministic"`
