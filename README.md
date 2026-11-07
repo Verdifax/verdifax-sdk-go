@@ -95,6 +95,12 @@ func main() {
 | `GetPublicBundle(ctx, id)` | `GET /runs/{id}/bundle.json` | none |
 | `GetPublicBundleByToken(ctx, token)` | `GET /public/runs/{token}/bundle.json` | none |
 | `DCAEVerify(ctx, bundle)` | `POST /dcae/verify` | none |
+| `UploadPolicy(ctx, document)` | `POST /policies` | required |
+| `ListPolicies(ctx)` | `GET /policies` | required |
+| `GetPolicy(ctx, documentHash)` | `GET /policies/{document_hash}` | required |
+| `TestPolicy(ctx, req)` | `POST /policies/test` | required |
+| `GetPolicyHistory(ctx)` | `GET /policies/history` | required |
+| `ActivatePolicy(ctx, documentHash)` | `GET /policies`, then `POST /policies/{document_hash}/activate` | required |
 | `RegisterRequestKey(ctx)` | `POST /keys/request-key` | required |
 | `RotateRequestKey(ctx, newKey)` | `POST /keys/request-key` | required |
 | `ClearRequestKey(ctx)` | `DELETE /keys/request-key` | required |
@@ -106,9 +112,9 @@ func main() {
 
 `client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
-These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
+These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
 
-`GetRunArtifacts`, `GetPublicBundle` and `GetPublicBundleByToken` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
+`GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken` and `GetPolicyHistory` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
 
 ## Versioning
 
@@ -218,6 +224,84 @@ To place a run in a job yourself, set `Job` to a `JobLink` on an `ExecuteRequest
 
 A job map covers what was sent. It cannot show a step that was never sent.
 
+## Policies
+
+A policy is your own set of rules for the runs under your API key. You upload its exact text, try it on sample inputs, and then activate it. Each activation is a change record that names the change before it and is anchored on the public log, so the history of your policies can be checked.
+
+Verdifax did not write, review or approve your policy. A pass means the rules ran, not that they are good rules.
+
+```go
+text, err := os.ReadFile("policy.json")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Stores the exact text. Nothing changes until it is activated.
+policy, err := client.UploadPolicy(ctx, string(text))
+if err != nil {
+    log.Fatal(err)
+}
+
+// Shows which rule would fire on sample inputs. It seals nothing.
+trial, err := client.TestPolicy(ctx, &verdifax.PolicyTestRequest{
+    DocumentHash: policy.DocumentHash,
+    Inputs:       map[string]any{"subject_type": "user", "object_type": "transaction", "mfa_satisfied": false},
+})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(trial.Outcome, trial.FiredRuleID, trial.ReasonCode)
+
+// Puts it in force.
+change, err := client.ActivatePolicy(ctx, policy.DocumentHash)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(change.Sequence, change.ActivationHash)
+
+// A run declares what the rules read. The actor values need an attested actor.
+run, err := client.Attest(ctx, &verdifax.AttestRequest{
+    ProgramID:          programID,
+    RouteID:            routeID,
+    RegistryRecordHash: recordHash,
+    PayloadText:        "transfer 500",
+    AttestedContext:    map[string]any{"actor_id": "user-42"},
+    PolicyContext: &verdifax.PolicyContext{
+        ActorType:      "user",
+        MFASatisfied:   true,
+        ObjectType:     "transaction",
+        Classification: "CONFIDENTIAL",
+    },
+    ExpectedPolicyHash: policy.PolicyHash,
+})
+
+// Rolling back is activating an earlier document.
+if _, err := client.ActivatePolicy(ctx, earlierDocumentHash); err != nil {
+    log.Fatal(err)
+}
+
+// Saves the history of changes, oldest first, for verdifax-verify --policy-history.
+history, err := client.GetPolicyHistory(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+if err := os.WriteFile("policy-history.json", history, 0o600); err != nil {
+    log.Fatal(err)
+}
+```
+
+Then run `verdifax-verify --policy-history policy-history.json` on the saved file. Save the bytes unchanged.
+
+`UploadPolicy` sends the text exactly as given, because the server hashes those exact bytes as `DocumentHash`. It refuses an empty document and text that is not valid UTF-8, which could not be sent unchanged. `GetPolicy` returns the stored text in `Document` and refuses a hash that is not 64 lowercase hex characters. `TestPolicy` needs exactly one of `Document` and `DocumentHash`, and sends `Inputs` as given.
+
+`ActivatePolicy` reads `ChainID` and `NewestActivationHash` with `GET /policies` and names that change. A client with a `SigningKey` also signs the change with it, which the server requires once a request key is registered. A client without one sends no signature. A rollback is one more change, so the change it undoes stays on the record. An HTTP 409 comes back as an `*APIError` with the server's message: the chain moved because another change came first, or the document is not yet effective. It is not retried. `PolicyActivationApproval` builds the same signature without sending it, and `PolicyActivationPreimage` returns the bytes it signs.
+
+`PolicyContext` takes `ActorType` (`agent`, `user`, `service` or `system`), `MFASatisfied`, `SessionAgeSeconds` (not negative), `ObjectType` (`text`, `transaction`, `code`, `data`, `model` or `file`), `ObjectID` (at most 256 bytes) and `Classification` (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`, `TOP_SECRET` or `TS_SCI`). `ActorType`, `MFASatisfied` and `SessionAgeSeconds` describe the attested actor, so a run that sets one of them must also carry `AttestedContext` with the actor; `ObjectType`, `ObjectID` and `Classification` work without it. `ExpectedPolicyHash` names the policy hash the run expects: when another policy is active, the server refuses the run with HTTP 409. The SDK refuses a value outside these before sending, on `Execute`, `Attest`, each batch row, `VerifyDeterminism`, `Job.Step` and the provider helpers. Decoding a `PolicyContext` from JSON refuses an unknown field, a null and a value of the wrong type, so a misspelt field is never dropped. On a client with a `SigningKey`, both fields are inside `signed_request`.
+
+A policy judges what you declared. It cannot show the declared facts are true.
+
+A refusal stops the action only if your system waits for the answer.
+
 ## Provider helpers
 
 `AttestClaudeResponse` and `AttestOpenAIResponse` attest a prompt and response as one payload: canonical JSON, exactly `{"prompt":...,"provider":...,"response":...}` with sorted keys and no extra whitespace, UTF-8, with `provider` set to `anthropic` or `openai`. `FormatProviderPayload` builds that text. All four Verdifax SDKs produce the same bytes. A helper call from an earlier version used a different payload, so it gave a different hash for the same text; records already stored are not touched.
@@ -230,11 +314,15 @@ run, err := client.AttestClaudeResponse(ctx, programID, routeID, recordHash,
 
 The helpers no longer send AI output for review unless you ask, which changes earlier behavior. Pass `verdifax.WithGovern()` to also send the response text as `AIOutputText` for the AIVP review, which runs on Anthropic in production.
 
+Pass `verdifax.WithPolicyContext(policyContext)` and `verdifax.WithExpectedPolicyHash(policyHash)` to set the policy fields described under Policies. The helpers send an `AttestedContext`, so the actor values are accepted.
+
 Pass `verdifax.WithJob(link)` to place the response in a job. `RecordHash` and `SignedRequest` come back as they do from `Attest`, and on the `APIError` of a refused or halted run.
 
 ## Optional execute fields
 
 `ExecuteRequest` and `AttestRequest` accept `AttestedContext`, `ReproducibilityContext`, `RequestSubstance`, `AuthorizationChain`, `RegulatoryScaffolding` and `CausalGraph`, on `Execute`, `Attest`, `ExecuteBatch` and `VerifyDeterminism`. Each is recorded as supplied and Verdifax does not check it. The client derives `attested` and `Declared` from the fields you provide. Leave out `origin.source_ip_hash` and `origin.user_agent_hash` in `RequestSubstance`: the server computes them. `Execute`, `Attest` and `VerifyDeterminism` refuse them before sending, and a batch row that sets them fails in `Results`.
+
+They also accept `PolicyContext` and `ExpectedPolicyHash`, which the SDK checks before sending, as described under Policies.
 
 `Execute`, `Attest` and `VerifyDeterminism` check that `ProgramID` and `RegistryRecordHash` are 64 lowercase hex characters and that `RouteID` is 1 to 256 printable ASCII characters.
 

@@ -66,6 +66,17 @@ type ExecuteRequest struct {
 	// refuses it there.
 	Job *JobLink `json:"job,omitempty"`
 
+	// PolicyContext is what this run declares for the active policy's
+	// rules to read. The SDK refuses an unknown value before sending, and
+	// actor values without an AttestedContext that provides a field. A
+	// signed request covers it.
+	PolicyContext *PolicyContext `json:"policy_context,omitempty"`
+
+	// ExpectedPolicyHash, when set, is the policy hash this run expects
+	// to run under: 64 lowercase hex characters. When another policy is
+	// active the server refuses the run with HTTP 409, an *APIError.
+	ExpectedPolicyHash Hex64 `json:"expected_policy_hash,omitempty"`
+
 	// AttestedContext carries caller-attested actor + decision
 	// metadata. Schema is open, any JSON-serializable structure
 	// the caller wants surfaced in the audit bundle. The client

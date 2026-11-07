@@ -21,7 +21,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/1.1.0"
+	UserAgent      = "verdifax-sdk-go/1.2.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -77,7 +77,8 @@ type Config struct {
 
 	// SigningKey, when set, signs every path to POST /execute with
 	// this Ed25519 private key, each row of an ExecuteBatch, and a
-	// VerifyDeterminism request. It is never sent to the server. Leave
+	// VerifyDeterminism request, and approves each ActivatePolicy
+	// change. It is never sent to the server. Leave
 	// it nil for unsigned requests. See GenerateRequestKey and
 	// RegisterRequestKey.
 	SigningKey SigningKey

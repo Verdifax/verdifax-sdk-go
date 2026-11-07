@@ -14,7 +14,7 @@
 //	    "fmt"
 //	    "log"
 //
-//	    "github.com/Verdifax/verdifax-sdk-go/verdifax"
+//	    "github.com/Verdifax/verdifax-sdk-go"
 //	)
 //
 //	func main() {
@@ -58,6 +58,17 @@
 // and records its record hash, so a later step can name the steps it
 // follows. A job map covers what was sent. It cannot show a step that
 // was never sent.
+//
+// # Policies
+//
+// UploadPolicy stores the exact text of a customer's own policy,
+// TestPolicy shows which rule would fire on sample inputs, and
+// ActivatePolicy puts a stored document in force with a change record,
+// signed by the SigningKey when the client has one. GetPolicyHistory
+// returns the chain of changes for verdifax-verify --policy-history. A
+// run declares what the rules read in PolicyContext. Verdifax did not
+// write, review or approve a customer's policy. A pass means the rules
+// ran, not that they are good rules.
 //
 // # Error model
 //

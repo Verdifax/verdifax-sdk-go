@@ -357,7 +357,8 @@ type preparedExecute struct {
 // prepareExecute builds what goes on the wire for req, without changing
 // req, so a request can be reused and shared across goroutines. Without
 // a SigningKey that is a copy with its derived flags, as plain JSON.
-// With one it is the signed envelope, with a fresh signature.
+// With one it is the signed envelope, with a fresh signature. The job
+// block and the policy fields are checked first, on every path.
 func (c *Client) prepareExecute(req *ExecuteRequest) (*preparedExecute, error) {
 	prepared := withExecuteFlags(req)
 	job, jobErr := normalizeJob(req.Job)
@@ -365,6 +366,9 @@ func (c *Client) prepareExecute(req *ExecuteRequest) (*preparedExecute, error) {
 		return nil, jobErr
 	}
 	prepared.Job = job
+	if policyErr := checkPolicyFields(prepared); policyErr != nil {
+		return nil, policyErr
+	}
 	signer := c.signer.Load()
 	if signer == nil {
 		return &preparedExecute{body: prepared}, nil

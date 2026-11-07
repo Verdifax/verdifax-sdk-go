@@ -33,8 +33,10 @@ type ProviderResponse struct {
 type ProviderOption func(*providerOptions)
 
 type providerOptions struct {
-	govern bool
-	job    *JobLink
+	govern             bool
+	job                *JobLink
+	policyContext      *PolicyContext
+	expectedPolicyHash Hex64
 }
 
 // WithGovern also sends the response text as AIOutputText for the AIVP
@@ -48,6 +50,19 @@ func WithGovern() ProviderOption {
 // The response gives its RecordHash and SignedRequest as Attest does.
 func WithJob(job *JobLink) ProviderOption {
 	return func(o *providerOptions) { o.job = job }
+}
+
+// WithPolicyContext declares values for the active policy's rules to
+// read, as AttestRequest.PolicyContext does. The helpers send an
+// AttestedContext, so the actor values are accepted.
+func WithPolicyContext(policyContext *PolicyContext) ProviderOption {
+	return func(o *providerOptions) { o.policyContext = policyContext }
+}
+
+// WithExpectedPolicyHash names the policy hash this run expects to run
+// under, as AttestRequest.ExpectedPolicyHash does.
+func WithExpectedPolicyHash(policyHash Hex64) ProviderOption {
+	return func(o *providerOptions) { o.expectedPolicyHash = policyHash }
 }
 
 // AttestClaudeResponse attests a Claude API response, with provider
@@ -106,6 +121,8 @@ func (c *Client) attestProviderResponse(
 		RouteID:            routeID,
 		RegistryRecordHash: registryRecordHash,
 		Job:                options.job,
+		PolicyContext:      options.policyContext,
+		ExpectedPolicyHash: options.expectedPolicyHash,
 		AttestedContext: map[string]any{
 			"actor_role":     "ai_assistant",
 			"model_provider": provider,

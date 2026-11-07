@@ -51,6 +51,11 @@ type AttestRequest struct {
 
 	// Job places this run in a job. Job.Step fills it in for you.
 	Job *JobLink
+
+	// PolicyContext and ExpectedPolicyHash are described on
+	// ExecuteRequest.
+	PolicyContext      *PolicyContext
+	ExpectedPolicyHash Hex64
 }
 
 // Attest is the high-level convenience wrapper around Execute.
@@ -84,6 +89,8 @@ func (c *Client) Attest(ctx context.Context, req *AttestRequest) (*ExecuteRespon
 		RegistryRecordHash:     req.RegistryRecordHash,
 		AIOutputText:           req.AIOutputText,
 		Job:                    req.Job,
+		PolicyContext:          req.PolicyContext,
+		ExpectedPolicyHash:     req.ExpectedPolicyHash,
 		AttestedContext:        req.AttestedContext,
 		ReproducibilityContext: req.ReproducibilityContext,
 		RequestSubstance:       req.RequestSubstance,
