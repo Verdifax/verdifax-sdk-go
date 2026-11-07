@@ -87,6 +87,34 @@
 // admitted only when both allow. The account's view covers the runs its
 // keys made through Verdifax, not runs made elsewhere.
 //
+// # Sign-off
+//
+// A sign-off is an approver's decision, approve or reject, on one exact
+// result: a record, a receipt, or a job by its final step. The owner key
+// registers approver keys with RegisterApprover, lists them with
+// ListApprovers and revokes them with RevokeApprover. SignOff reads the
+// account's chain, hashes the note on this machine, signs with the
+// approver key and submits; the note's text is never sent. GetSignOffs,
+// GetNewestSignOff and GetSignOffHistory read them back. Set AsOwner to
+// use the owner key's /account routes.
+//
+//	signOff, err := client.SignOff(ctx, verdifax.SignOffTarget{
+//	    Kind:   verdifax.SignOffTargetRecord,
+//	    RunID:  runID,
+//	    Digest: anchoredDigest, // bundle_anchor.anchored_digest from GetRunArtifacts
+//	}, verdifax.SignOffApprove, approverKey, &verdifax.SignOffOptions{Note: note})
+//
+// A record's digest is its bundle_anchor.anchored_digest from
+// GetRunArtifacts, and a receipt's is its hash. An approver key is
+// registered by the owner and is never a request key in the same
+// account. A sign-off shows that the holder of a registered approver key
+// signed that decision on that exact result, and that Verdifax logged it
+// on the public log. It does not show the review was careful, the result
+// was right, or who the person is: a key is not an identity. It gates
+// nothing on its own. A later sign-off on the same result supersedes the
+// earlier one, and nothing is deleted. Verdifax did not review the
+// result. Since v0.22.0, verdifax-verify reads sign-offs.
+//
 // # Error model
 //
 // Methods return one of three error kinds:

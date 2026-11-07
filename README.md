@@ -119,6 +119,13 @@ func main() {
 | `TestAccountPolicy(ctx, req)` | `POST /account/policies/test` | owner |
 | `GetAccountPolicyHistory(ctx)` | `GET /account/policies/history` | owner |
 | `ActivateAccountPolicy(ctx, documentHash)` | `GET /account/policies`, then `POST /account/policies/{document_hash}/activate` | owner |
+| `RegisterApprover(ctx, req)` | `POST /account/approvers` | owner |
+| `ListApprovers(ctx)` | `GET /account/approvers` | owner |
+| `RevokeApprover(ctx, id)` | `DELETE /account/approvers/{id}` | owner |
+| `GetNewestSignOff(ctx, opts)` | `GET /signoffs/newest`, or with `AsOwner` `GET /account/signoffs/newest` | required, or owner |
+| `SignOff(ctx, target, decision, approverKey, opts)` | `GET /signoffs/newest`, then `POST /signoffs`; with `AsOwner` the `/account/signoffs` routes | required, or owner |
+| `GetSignOffs(ctx, runID, opts)` | `GET /runs/{id}/signoffs`, or with `AsOwner` `GET /account/runs/{id}/signoffs` | required, or owner |
+| `GetSignOffHistory(ctx)` | `GET /account/signoffs/history` | owner |
 | `AdminCreateKey(ctx, name, opts...)` | `POST /admin/keys` | admin |
 | `AdminListKeys(ctx)` | `GET /admin/keys` | admin |
 | `AdminRevokeKey(ctx, id)` | `DELETE /admin/keys/{id}` | admin |
@@ -131,9 +138,9 @@ func main() {
 
 `client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
-These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
+These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `SignOffPreimage`, `ApproverKeyProof`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
 
-`GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken` and `GetPolicyHistory` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
+`GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken`, `GetPolicyHistory` and `GetSignOffHistory` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
 
 ## Versioning
 
@@ -389,6 +396,102 @@ What an account is, and what it is not:
 `ExportAccountRuns` returns a `RunsExport`, as `ExportRuns` does. Both carry `AccountID`, and `AccountPolicyDocuments` and `AccountPolicyHistory` once the account has stored a policy. `AccountPolicyHistory` and `GetAccountPolicyHistory` keep the exact JSON bytes the server sent, so save them unchanged. `RevokeAccountKey` returns a `*NotFoundError` for a key in another account and for an owner key.
 
 To put a new customer key in an existing account, an admin passes its number: `admin.AdminCreateKey(ctx, "payments-service", verdifax.AdminCreateKeyOptions{AccountID: 7})`. Without it, the key gets an account of its own. A key never moves to another account.
+
+## Sign-off
+
+A sign-off is a person's decision, approve or reject, on one exact result: a completed run's record, a refused or halted run's receipt, or a whole job by its final step. The approver signs it on your machine with an approver key, and Verdifax logs it on the public log. Each sign-off names the account's sign-off before it, so a removed or reordered sign-off breaks the chain.
+
+```go
+// On the approver's machine: a new approver key, and the proof that its
+// holder has the private key. Nothing is sent.
+_, approverKey, err := verdifax.GenerateRequestKey()
+if err != nil {
+    log.Fatal(err)
+}
+publicKey, proof, err := verdifax.ApproverKeyProof(approverKey)
+if err != nil {
+    log.Fatal(err)
+}
+
+// The owner registers the public key with its proof, so the owner never
+// holds the approver's private key. The SDK checks the proof first.
+approver, err := owner.RegisterApprover(ctx, &verdifax.RegisterApproverRequest{
+    Name:      "Dana, credit review",
+    PublicKey: publicKey,
+    Proof:     proof,
+})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(approver.ID, approver.PublicKey)
+
+// A record's digest is bundle_anchor.anchored_digest in its bundle.
+bundle, err := client.GetRunArtifacts(ctx, runID)
+if err != nil {
+    log.Fatal(err)
+}
+var sealed struct {
+    BundleAnchor struct {
+        AnchoredDigest string `json:"anchored_digest"`
+    } `json:"bundle_anchor"`
+}
+if err := json.Unmarshal(bundle, &sealed); err != nil {
+    log.Fatal(err)
+}
+
+// The approver signs the decision; a member key submits it. Only the
+// note's SHA-256 is sent, never its text.
+signOff, err := client.SignOff(ctx, verdifax.SignOffTarget{
+    Kind:   verdifax.SignOffTargetRecord,
+    RunID:  runID,
+    Digest: sealed.BundleAnchor.AnchoredDigest,
+}, verdifax.SignOffApprove, approverKey, &verdifax.SignOffOptions{Note: "Checked the income figures."})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(signOff.Sequence, signOff.SignOffHash)
+
+// Saves the sign-offs on the run for verdifax-verify --signoff.
+signOffs, err := client.GetSignOffs(ctx, runID, nil)
+if err != nil {
+    log.Fatal(err)
+}
+saved, err := json.Marshal(signOffs)
+if err != nil {
+    log.Fatal(err)
+}
+if err := os.WriteFile("signoffs.json", saved, 0o600); err != nil {
+    log.Fatal(err)
+}
+
+// The owner saves the account's whole chain for verdifax-verify --signoff-history.
+history, err := owner.GetSignOffHistory(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+if err := os.WriteFile("signoff-history.json", history, 0o600); err != nil {
+    log.Fatal(err)
+}
+```
+
+Then run `verdifax-verify --signoff signoffs.json` with the record, and `verdifax-verify --signoff-history signoff-history.json` on its own. Since v0.22.0, verdifax-verify reads sign-offs.
+
+What a sign-off is, and what it is not:
+
+- An approver key is registered by the account's owner key, and is never a request key in the same account.
+- A sign-off shows that the holder of a registered approver key signed that decision on that exact result, and that Verdifax logged it on the public log.
+- It does not show the review was careful, the result was right, or who the person is. A key is not an identity, and the approver's name is the owner's label.
+- It gates nothing on its own.
+- A later sign-off on the same result supersedes the earlier one. Nothing is deleted, and revoking an approver key leaves its earlier sign-offs on the record.
+- Verdifax did not review the result.
+
+The target names the result by what its public-log entry covers. A record's `Digest` is its `bundle_anchor.anchored_digest` from `GetRunArtifacts`, a receipt's is its hash, and a job's is its final step's anchored digest, with `JobID` set. The server refuses any other digest.
+
+`RegisterApprover` takes exactly one of `ApproverKey`, the approver's private key, from which it makes the proof on your machine, and `PublicKey` with `Proof`, as `ApproverKeyProof` returns them on the approver's machine. It checks a ready-made proof before sending, and refuses an empty name or one over 200 bytes, and the client's own `SigningKey` as the approver key. No private key is sent.
+
+`SignOff` reads the chain, `account-N`, and the newest sign-off with `GetNewestSignOff`, hashes `Note` on your machine, signs with the approver key, the current time and a fresh nonce, and submits. An empty `Note` means no note: it is not hashed, and no `note_hash` is sent. It returns an error if the record the server sends back differs from what was signed in its signature, approver key, decision, previous sign-off hash or target. It refuses a bad target kind, run ID, digest or decision, a missing approver key, and the client's own `SigningKey` as the approver key, before sending anything. An HTTP 409 comes back as an `*APIError`: the chain moved because another sign-off came first, or the digest is not the result's. It is not retried. A member key uses `/signoffs` and `/runs/{id}/signoffs`. Set `AsOwner` in `SignOffOptions` or `AccountRouteOptions` to use the owner key's `/account` routes. `SignOffPreimage` returns the bytes an approver key signs, and `ApproverKeyProof` builds the registration proof without sending it.
+
+`ExportAccountRuns` carries the account's sign-offs in `SignOffs`, as the exact JSON bytes the server sent.
 
 ## Provider helpers
 

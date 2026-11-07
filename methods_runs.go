@@ -125,6 +125,12 @@ type RunsExport struct {
 	// number in an anchor is not rounded. Decode it into
 	// []PolicyActivation to read it.
 	AccountPolicyHistory json.RawMessage `json:"account_policy_history,omitempty"`
+
+	// SignOffs is the account's whole chain of sign-offs, oldest first,
+	// as the exact JSON bytes the server sent. Only the owner key's
+	// export, ExportAccountRuns, carries it. Decode it into []SignOff to
+	// read it.
+	SignOffs json.RawMessage `json:"signoffs,omitempty"`
 }
 
 // ExportRow is one run in an evidence export: what the server stored,

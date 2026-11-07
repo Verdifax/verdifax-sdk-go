@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.0
+
+Customer sign-off. An approver signs a decision, approve or reject, on one exact result: a completed run's record, a refused or halted run's receipt, or a whole job by its final step. Verdifax logs each sign-off on the public log, linked to the account's sign-off before it.
+
+- New owner key methods: `RegisterApprover`, `ListApprovers`, `RevokeApprover` and `GetSignOffHistory`. `RegisterApprover` takes the approver's `SigningKey` and makes the proof on this machine, or takes the public key and proof that `ApproverKeyProof` made on the approver's machine and checks the proof before sending, so the owner never has to hold the approver's private key. No private key is sent. It refuses the client's own `SigningKey` as the approver key.
+- New methods for a member key, or for the owner key with `AsOwner`: `SignOff`, `GetSignOffs` and `GetNewestSignOff`. `SignOff` reads the newest sign-off, hashes the note on this machine, signs with the approver key and submits. It sends the note's SHA-256, never its text; an empty note is no note, so no `note_hash` is sent. It returns an error if the returned record differs from what was signed in its signature, approver key, decision, previous sign-off hash or target. It refuses a bad target, decision or key before sending anything.
+- New functions that make no request: `SignOffPreimage`, the bytes an approver key signs, and `ApproverKeyProof`, the registration proof.
+- New types: `SignOff`, `SignOffTarget`, `SignOffOptions`, `RegisterApproverRequest`, `AccountRouteOptions`, `NewestSignOff`, `Approver` and `ApproverList`, and the constants `SignOffTargetRecord`, `SignOffTargetReceipt`, `SignOffTargetJob`, `SignOffApprove` and `SignOffReject`.
+- `GetSignOffHistory` returns the exact JSON bytes the server sent, for `verdifax-verify --signoff-history`. `SignOff.Anchor` keeps the anchor's exact JSON bytes.
+- `RunsExport` has `SignOffs`, the account's sign-offs, which the owner key's export carries, as the exact JSON bytes the server sent.
+- The user agent is `verdifax-sdk-go/1.4.0`.
+
+A record's digest is its `bundle_anchor.anchored_digest` from `GetRunArtifacts`, and a receipt's is its hash. An approver key is registered by the owner and is never a request key in the same account. A sign-off shows that the holder of a registered approver key signed that decision on that exact result, and that Verdifax logged it on the public log. It does not show the review was careful, the result was right, or who the person is: a key is not an identity. It gates nothing on its own. A later sign-off on the same result supersedes the earlier one, and nothing is deleted. Verdifax did not review the result. Since v0.22.0, verdifax-verify reads sign-offs.
+
 ## 1.3.0
 
 Accounts. An account is a company, and every API key belongs to one account for life. The account's owner key manages the account and cannot run anything.
