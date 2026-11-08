@@ -126,6 +126,15 @@ func main() {
 | `SignOff(ctx, target, decision, approverKey, opts)` | `GET /signoffs/newest`, then `POST /signoffs`; with `AsOwner` the `/account/signoffs` routes | required, or owner |
 | `GetSignOffs(ctx, runID, opts)` | `GET /runs/{id}/signoffs`, or with `AsOwner` `GET /account/runs/{id}/signoffs` | required, or owner |
 | `GetSignOffHistory(ctx)` | `GET /account/signoffs/history` | owner |
+| `GetSignals(ctx, opts)` | `GET /signals`, or with `AsOwner` `GET /account/signals` | feed key, or owner |
+| `FollowSignals(ctx, after, opts, fn)` | `GET /signals` page after page, or with `AsOwner` `GET /account/signals` | feed key, or owner |
+| `CreateFeedKey(ctx, name, expiresAt)` | `POST /account/feed-keys` | owner |
+| `RevokeFeedKey(ctx, id)` | `DELETE /account/feed-keys/{id}` | owner |
+| `CreateWebhook(ctx, url, types)` | `POST /account/webhooks` | owner |
+| `ListWebhooks(ctx)` | `GET /account/webhooks` | owner |
+| `DeleteWebhook(ctx, id)` | `DELETE /account/webhooks/{id}` | owner |
+| `ListWebhookDeliveries(ctx, id, limit)` | `GET /account/webhooks/{id}/deliveries` | owner |
+| `GetFailureReceipt(ctx, id)` | `GET /runs/{id}/failure-receipt` | required |
 | `AdminCreateKey(ctx, name, opts...)` | `POST /admin/keys` | admin |
 | `AdminListKeys(ctx)` | `GET /admin/keys` | admin |
 | `AdminRevokeKey(ctx, id)` | `DELETE /admin/keys/{id}` | admin |
@@ -134,13 +143,13 @@ func main() {
 | `AdminCreateAccount(ctx, req)` | `POST /admin/accounts` | admin |
 | `AdminListAccounts(ctx)` | `GET /admin/accounts` | admin |
 
-"owner" means the account's owner key. See [Accounts](#accounts).
+"owner" means the account's owner key. See [Accounts](#accounts). A feed key reads the signal feed and nothing else. See [Signal feed](#signal-feed).
 
 `client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
-These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `SignOffPreimage`, `ApproverKeyProof`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
+These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `SignOffPreimage`, `ApproverKeyProof`, `SignalEventHash`, `VerifyWebhook`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
 
-`GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken`, `GetPolicyHistory` and `GetSignOffHistory` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
+`GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken`, `GetPolicyHistory`, `GetSignOffHistory` and `GetFailureReceipt` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
 
 ## Versioning
 
@@ -492,6 +501,78 @@ The target names the result by what its public-log entry covers. A record's `Dig
 `SignOff` reads the chain, `account-N`, and the newest sign-off with `GetNewestSignOff`, hashes `Note` on your machine, signs with the approver key, the current time and a fresh nonce, and submits. An empty `Note` means no note: it is not hashed, and no `note_hash` is sent. It returns an error if the record the server sends back differs from what was signed in its signature, approver key, decision, previous sign-off hash or target. It refuses a bad target kind, run ID, digest or decision, a missing approver key, and the client's own `SigningKey` as the approver key, before sending anything. An HTTP 409 comes back as an `*APIError`: the chain moved because another sign-off came first, or the digest is not the result's. It is not retried. A member key uses `/signoffs` and `/runs/{id}/signoffs`. Set `AsOwner` in `SignOffOptions` or `AccountRouteOptions` to use the owner key's `/account` routes. `SignOffPreimage` returns the bytes an approver key signs, and `ApproverKeyProof` builds the registration proof without sending it.
 
 `ExportAccountRuns` carries the account's sign-offs in `SignOffs`, as the exact JSON bytes the server sent.
+
+## Signal feed
+
+Every control signal Verdifax recorded for the account is one event in the account's feed, in order, each with its sealed entry: a refused, halted or failed run, a policy change, a sign-off, an approver key registered or revoked, and a member or feed key created or revoked. Each event's place and the previous event's hash are sealed inside its entry before that entry is anchored on the public log. The feed shows the signals Verdifax recorded for the account. It cannot show a signal Verdifax never recorded.
+
+A feed key reads the feed and nothing else. The owner key creates one with `CreateFeedKey` and revokes it with `RevokeFeedKey`.
+
+```go
+// The owner key creates a feed key. Its secret is shown once.
+feedKey, err := owner.CreateFeedKey(ctx, "siem", nil)
+if err != nil {
+    log.Fatal(err)
+}
+feed, err := verdifax.NewClient(verdifax.Config{APIKey: feedKey.Secret})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Follows the feed from the last sequence already read. Store each
+// sequence once its event is handled, and start from it next time.
+err = feed.FollowSignals(ctx, lastSequenceRead, nil, func(event verdifax.SignalEvent) error {
+    fmt.Println(event.Data.Sequence, event.Data.Kind, event.Data.RunID)
+    return nil
+})
+var stopped *verdifax.FollowSignalsError
+if errors.As(err, &stopped) {
+    log.Printf("stopped after sequence %d: %v", stopped.After, stopped.Err)
+}
+```
+
+`GetSignals` reads one page: the events after `After`, oldest first, at most `Limit` (1 to 500, 100 by default), held open up to `Wait` (a whole number of seconds from 0 to 25) when there is no new event yet. The HTTP timeout of a feed read is at least its wait plus 30 seconds, whatever the client's own timeout. `FollowSignals` reads each page from the page before's `next_after`, holds each read open for 25 seconds by default, and retries a failed read with the client's retry policy. It refuses a page that would make it skip or repeat an event. It stops when the handler returns an error or the context ends, with a `*FollowSignalsError` whose `After` is the last sequence the handler finished, so following again from there loses nothing. A handler returns `verdifax.ErrStopFollowing` to stop without an error. Both refuse a bad `After`, `Limit` or `Wait` before sending anything. Set `AsOwner` to read the feed with the owner key on `GET /account/signals`.
+
+`SignalData.Entry` is the sealed entry as the exact JSON bytes the server sent. `json.Marshal` the events you read to a file and check it with `verdifax-verify --signals FILE`. `SignalEventHash` returns an event's hash: the SHA-256 of `verdifax.signal.v1`, the kind, the entry's hash, the account, the sequence and the previous event's hash, joined by zero bytes.
+
+Webhooks push each event to an `https://` address after it is stored, in the same envelope the feed serves, and retry a failed delivery for up to 24 hours. A delivery is a copy: the pull feed and the public log are the record, and a missed delivery is read again from the feed.
+
+```go
+// The owner key subscribes. nil types delivers every kind. The secret is
+// shown once.
+hook, err := owner.CreateWebhook(ctx, "https://hooks.example.com/verdifax",
+    []string{verdifax.SignalRunRefused, verdifax.SignalRunHalted, verdifax.SignalRunFailed})
+if err != nil {
+    log.Fatal(err)
+}
+webhookSecret := hook.Secret
+
+// checkAuth admits only a delivery signed with this subscription's secret,
+// checked against the raw body as received.
+checkAuth := func(r *http.Request, body []byte) (*verdifax.SignalEvent, error) {
+    return verdifax.VerifyWebhook(r.Header, body, webhookSecret, 0, time.Time{})
+}
+http.HandleFunc("/verdifax", func(w http.ResponseWriter, r *http.Request) {
+    body, err := io.ReadAll(r.Body)
+    if err != nil {
+        http.Error(w, "the body could not be read", http.StatusBadRequest)
+        return
+    }
+    event, err := checkAuth(r, body)
+    if err != nil {
+        http.Error(w, "the delivery did not verify", http.StatusUnauthorized)
+        return
+    }
+    fmt.Println(event.Data.Sequence, event.Data.Kind)
+    w.WriteHeader(http.StatusNoContent)
+})
+```
+
+`VerifyWebhook` follows the Standard Webhooks scheme. The secret is `whsec_` and base64. The signed content is `webhook-id`, a dot, `webhook-timestamp`, a dot and the raw body bytes, and any one of the `v1` signatures in `webhook-signature` may match, compared in constant time. It refuses a timestamp more than the tolerance from now in either direction; a tolerance of 0 means 5 minutes, and a zero time means now. Header names may be in any case. Its error says which check failed and never holds the secret.
+
+`CreateWebhook` refuses an address that does not start with `https://`, and a type that is not one of the nine kinds (the `Signal` constants) or is named twice, before sending anything. The server checks the address too, and refuses one that is not https on a public host. An account holds at most ten subscriptions. `ListWebhooks` lists them without their secrets, `DeleteWebhook` ends one, and its undelivered events stay in the feed. `ListWebhookDeliveries` shows each delivery's status, attempts and last answer.
+
+`GetFailureReceipt` returns the sealed failure receipt of a run that failed with a server error, as the exact JSON bytes the server sent. It names the request and the stage that failed. A failed run from before failure receipts comes back as a `*NotFoundError`.
 
 ## Provider helpers
 

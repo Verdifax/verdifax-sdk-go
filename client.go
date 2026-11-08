@@ -21,7 +21,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/1.4.0"
+	UserAgent      = "verdifax-sdk-go/1.5.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -169,6 +169,12 @@ type rawResponse struct {
 // Returns one of: *AuthError, *NotFoundError, *APIError, or a
 // transport-level error from the underlying http.Client.
 func (c *Client) doRequest(ctx context.Context, method, path string, body, out any) error {
+	return c.doRequestWith(ctx, c.httpClient, method, path, body, out)
+}
+
+// doRequestWith is doRequest on httpClient, for a call that needs a
+// longer timeout than the client's own, as a signal feed wait does.
+func (c *Client) doRequestWith(ctx context.Context, httpClient *http.Client, method, path string, body, out any) error {
 	var bodyReader io.Reader
 	if body != nil {
 		buf, err := json.Marshal(body)
@@ -191,7 +197,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body, out a
 	}
 	req.Header.Set("User-Agent", c.userAgent)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("verdifax: HTTP transport: %w", err)
 	}

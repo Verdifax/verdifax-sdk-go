@@ -115,6 +115,25 @@
 // earlier one, and nothing is deleted. Verdifax did not review the
 // result. Since v0.22.0, verdifax-verify reads sign-offs.
 //
+// # Signal feed
+//
+// Every control signal Verdifax records for an account is one event in
+// the account's feed, in order, each with its sealed entry. A feed key
+// reads the feed with GetSignals and FollowSignals and does nothing
+// else; with AsOwner the owner key reads it too. The owner key creates
+// and revokes feed keys with CreateFeedKey and RevokeFeedKey, and
+// manages webhooks with CreateWebhook, ListWebhooks, DeleteWebhook and
+// ListWebhookDeliveries. VerifyWebhook checks a delivery's Standard
+// Webhooks signature and returns its event, and SignalEventHash returns
+// an event's hash. A delivery is a copy: the pull feed and the public
+// log are the record. The feed cannot show a signal Verdifax never
+// recorded. verdifax-verify --signals checks a saved feed.
+//
+//	err := feed.FollowSignals(ctx, lastSequenceRead, nil, func(event verdifax.SignalEvent) error {
+//	    fmt.Println(event.Data.Sequence, event.Data.Kind)
+//	    return nil
+//	})
+//
 // # Error model
 //
 // Methods return one of three error kinds:

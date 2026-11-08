@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.0
+
+The signal feed. Every control signal Verdifax recorded for the account is one event in the account's feed, in order, each with its sealed entry: a refused, halted or failed run, a policy change, a sign-off, an approver key registered or revoked, and a member or feed key created or revoked. Each event's place and the previous event's hash are sealed inside its entry before that entry is anchored on the public log.
+
+- New methods that read the feed: `GetSignals` reads one page after a place, and `FollowSignals` reads page after page from a place and calls a handler with each event until the handler returns an error or the context ends. A feed key reads `GET /signals`; with `AsOwner` the owner key reads `GET /account/signals`. Both refuse a negative `After`, a `Limit` outside 1 to 500, and a `Wait` that is not a whole number of seconds from 0 to 25, before sending anything. The HTTP timeout of a feed read is at least its wait plus 30 seconds, whatever the client's own timeout.
+- `FollowSignals` reads each page from the page before's `next_after`, waits 25 seconds by default when there is no new event, and retries a failed read with the client's retry policy. It refuses a page that would make it skip or repeat an event. It stops with a `*FollowSignalsError` whose `After` is the last sequence the handler finished, so following again from there loses nothing. A handler returns `ErrStopFollowing` to stop without an error.
+- New owner key methods for feed keys: `CreateFeedKey` and `RevokeFeedKey`. A feed key reads the signal feed and nothing else. `CreateFeedKey` refuses an empty name or one over 200 bytes before sending.
+- New owner key methods for webhooks: `CreateWebhook`, `ListWebhooks`, `DeleteWebhook` and `ListWebhookDeliveries`. `CreateWebhook` refuses an address that does not start with `https://`, and a type that is not one of the nine kinds or is named twice, before sending anything; the server checks the address too. Its secret is shown once. A delivery is a copy: the pull feed and the public log are the record, and a missed delivery is read again from the feed.
+- `GetFailureReceipt` returns the sealed failure receipt of a run that failed with a server error, as the exact JSON bytes the server sent. A failed run from before failure receipts comes back as a `*NotFoundError`.
+- New functions that make no request: `VerifyWebhook` checks a delivery under the Standard Webhooks scheme (the `whsec_` secret, a `webhook-timestamp` within 5 minutes of now by default, and any `v1` signature in `webhook-signature`, compared in constant time over `webhook-id`, the timestamp and the raw body) and returns its event. Its error says which check failed and never holds the secret. `SignalEventHash` returns an event's hash.
+- New types: `SignalEvent`, `SignalData`, `SignalPage`, `GetSignalsOptions`, `FollowSignalsOptions`, `FollowSignalsError`, `CreateFeedKeyResponse`, `Webhook`, `CreatedWebhook` and `WebhookDelivery`; the constant `DefaultWebhookTolerance`; the error `ErrStopFollowing`; and a constant for each of the nine kinds, `SignalRunRefused`, `SignalRunHalted`, `SignalRunFailed`, `SignalPolicyChanged`, `SignalSignOffRecorded`, `SignalApproverRegistered`, `SignalApproverRevoked`, `SignalKeyCreated` and `SignalKeyRevoked`.
+- `SignalData.Entry` keeps the sealed entry as the exact JSON bytes the server sent.
+- The user agent is `verdifax-sdk-go/1.5.0`.
+
+The feed shows the signals Verdifax recorded for the account, in order. It cannot show a signal Verdifax never recorded. `verdifax-verify --signals` checks a saved feed.
+
 ## 1.4.0
 
 Customer sign-off. An approver signs a decision, approve or reject, on one exact result: a completed run's record, a refused or halted run's receipt, or a whole job by its final step. Verdifax logs each sign-off on the public log, linked to the account's sign-off before it.
