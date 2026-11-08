@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+- The account owner publishes the account's records. `PublishRun(ctx, runID)` makes a record made by any key of the account public on its random link with `POST /account/runs/{id}/publish`, and `UnpublishRun` withdraws it with `/unpublish`, keeping the link for a later publish. Both need the owner key and answer a `PublicationResult`: the run's public state, its links while public, and the `RunPublication` the call sealed (nil when the run was already in the asked state). A publication, `verdifax.run-publication.v1`, names the run, its record hash, its job and step and the time, with its place in the account's signal feed, and marshals as the exact bytes the server sent. The service's admin key cannot publish another key's record.
+- Signal kinds `run.published` and `run.unpublished` (`SignalRunPublished`, `SignalRunUnpublished`); `verdifax-verify --signals` reads them since v0.24.0.
+- The user agent is `verdifax-sdk-go/1.6.0`.
+
 ## 1.5.1
 
 - A sign-off, a policy change and a feed event now marshal as the exact JSON bytes the server sent. Since server e233482 (November 8, 2026 UTC) a sign-off and an account policy change seal their place in the account's signal feed in their hash; 1.5.0 decoded them into types without that field, so a sign-off list saved with `json.Marshal` dropped it, and `verdifax-verify --signoff` reported a hash that does not recompute. No field the server seals is dropped now, including one a later server adds, and no large number is rounded. A record built in code marshals from its fields as before.

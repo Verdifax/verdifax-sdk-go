@@ -70,11 +70,16 @@ const (
 	SignalApproverRevoked    = "approver.revoked"
 	SignalKeyCreated         = "key.created"
 	SignalKeyRevoked         = "key.revoked"
+	// SignalRunPublished and SignalRunUnpublished: the account's owner made a
+	// record public on its link, or withdrew it.
+	SignalRunPublished   = "run.published"
+	SignalRunUnpublished = "run.unpublished"
 )
 
 // signalKinds is every kind the feed carries, in the server's order.
 var signalKinds = []string{SignalRunRefused, SignalRunHalted, SignalRunFailed, SignalPolicyChanged,
-	SignalSignOffRecorded, SignalApproverRegistered, SignalApproverRevoked, SignalKeyCreated, SignalKeyRevoked}
+	SignalSignOffRecorded, SignalApproverRegistered, SignalApproverRevoked, SignalKeyCreated, SignalKeyRevoked,
+	SignalRunPublished, SignalRunUnpublished}
 
 // SignalEvent is one event of the feed: a CloudEvent whose data is the
 // Verdifax event. A webhook delivers the same envelope.
