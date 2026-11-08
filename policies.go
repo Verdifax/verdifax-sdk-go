@@ -112,6 +112,14 @@ type PolicyActivation struct {
 	Signature              *PolicyActivationSignature `json:"signature,omitempty"`
 	ActivationHash         Hex64                      `json:"activation_hash"`
 	Anchor                 map[string]any             `json:"anchor,omitempty"`
+
+	// Signal is an account policy change's place in the account's signal
+	// feed, sealed in its hash; nil on a key's policy change and on a
+	// change recorded before the feed.
+	Signal *SignalLink `json:"signal,omitempty"`
+
+	// sealed is the exact bytes the server sent (sealed.go).
+	sealed json.RawMessage
 }
 
 // PolicyContext is what a run declares for the active policy's rules to

@@ -328,8 +328,13 @@ func TestActivatePolicyReadsTheChainThenSendsASignedChange(t *testing.T) {
 		DocumentHash: policyDocHash, ActivatedAt: "2026-11-07T00:00:00Z",
 		Signature:      &PolicyActivationSignature{PublicKey: "k", Signature: "s", SignedAt: "2026-11-07T00:00:00Z", Nonce: "n"},
 		ActivationHash: strings.Repeat("f", 64), Anchor: map[string]any{"log_index": float64(5)}}
-	if !reflect.DeepEqual(out, want) {
-		t.Fatalf("activation = %+v", out)
+	if len(out.sealed) == 0 {
+		t.Fatal("the change does not keep the bytes the server sent")
+	}
+	fields := *out
+	fields.sealed = nil
+	if !reflect.DeepEqual(&fields, want) {
+		t.Fatalf("activation = %+v", fields)
 	}
 	if len(*seen) != 2 || (*seen)[0].Method != "GET" || (*seen)[0].Path != "/policies" {
 		t.Fatalf("requests = %+v", *seen)

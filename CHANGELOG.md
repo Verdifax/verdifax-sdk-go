@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.1
+
+- A sign-off, a policy change and a feed event now marshal as the exact JSON bytes the server sent. Since server e233482 (November 8, 2026 UTC) a sign-off and an account policy change seal their place in the account's signal feed in their hash; 1.5.0 decoded them into types without that field, so a sign-off list saved with `json.Marshal` dropped it, and `verdifax-verify --signoff` reported a hash that does not recompute. No field the server seals is dropped now, including one a later server adds, and no large number is rounded. A record built in code marshals from its fields as before.
+- `SignOff` and `PolicyActivation` have `Signal`, the record's place in the account's signal feed, a `*SignalLink`, nil on a record from before the feed and on a key's policy change.
+- New type: `SignalLink`.
+- The user agent is `verdifax-sdk-go/1.5.1`.
+
 ## 1.5.0
 
 The signal feed. Every control signal Verdifax recorded for the account is one event in the account's feed, in order, each with its sealed entry: a refused, halted or failed run, a policy change, a sign-off, an approver key registered or revoked, and a member or feed key created or revoked. Each event's place and the previous event's hash are sealed inside its entry before that entry is anchored on the public log.

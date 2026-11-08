@@ -93,6 +93,9 @@ type SignalEvent struct {
 	Time            string     `json:"time"`
 	DataContentType string     `json:"datacontenttype"`
 	Data            SignalData `json:"data"`
+
+	// sealed is the exact bytes the server sent (sealed.go).
+	sealed json.RawMessage
 }
 
 // SignalData is the Verdifax event inside a SignalEvent,

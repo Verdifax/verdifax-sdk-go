@@ -102,9 +102,16 @@ type SignOff struct {
 	RecordedAt  string `json:"recorded_at"`
 	SignOffHash Hex64  `json:"signoff_hash"`
 
+	// Signal is the sign-off's place in the account's signal feed, sealed
+	// in its hash; nil on a sign-off recorded before the feed.
+	Signal *SignalLink `json:"signal,omitempty"`
+
 	// Anchor is the public-log anchor as the exact JSON bytes the server
 	// sent, so a large number in it is not rounded.
 	Anchor json.RawMessage `json:"anchor,omitempty"`
+
+	// sealed is the exact bytes the server sent (sealed.go).
+	sealed json.RawMessage
 }
 
 // Approver is one of the account's approver keys.
