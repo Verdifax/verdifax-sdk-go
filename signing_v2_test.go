@@ -594,7 +594,7 @@ func TestUserAgentNamesTheVersion(t *testing.T) {
 	if _, healthErr := c.Health(context.Background()); healthErr == nil {
 		t.Fatal("expected the stop error")
 	}
-	if got != "verdifax-sdk-go/1.7.0" {
+	if got != "verdifax-sdk-go/1.8.0" {
 		t.Fatalf("user agent = %q", got)
 	}
 }

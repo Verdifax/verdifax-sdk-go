@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0
+
+A publication says who decided.
+
+- A run publication is now `verdifax.run-publication.v2` and seals who decided: `owner`, the account's owner key, or `verdifax_admin`, a Verdifax admin key, which can withdraw any public record and publish only records it made itself. Every change to a record's public state, Verdifax's included, is now sealed in the feed of the record's account. `RunPublication.DecidedBy` carries it, with the constants `PublicationByOwner` and `PublicationByVerdifax`. Publications sealed before v2 are v1, carry no `decided_by`, and were the owner's. `verdifax-verify --signals` reads v2 since v0.26.0.
+- The user agent is `verdifax-sdk-go/1.8.0`.
+
 ## 1.7.0
 
 - A published stopped run is served as its sealed receipt. `PublicationResult` has `PublicReceiptURL`, the address of a stopped run's receipt while it is public, `/public/runs/{token}/receipt.json`; a stopped run has no bundle address, so `PublicBundleURL` is empty for it. `verdifax-verify` checks the receipt address as it checks a saved receipt.

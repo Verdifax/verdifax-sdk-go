@@ -8,19 +8,33 @@ import (
 )
 
 // A sealed record belongs to the account that made it, so only the account's
-// owner key makes it public on its random link, or withdraws it. Each
-// decision is a run publication, verdifax.run-publication.v1: sealed, placed
-// in the account's signal feed as a run.published or run.unpublished event,
-// and anchored on the public log, so an auditor sees who made what public and
-// when. verdifax-verify --signals reads it since v0.24.0.
+// owner key makes it public on its random link; the owner key withdraws it,
+// and a Verdifax admin key can also withdraw it. Each decision is a run
+// publication, verdifax.run-publication.v2: sealed with who decided (owner or
+// verdifax_admin), placed in the account's signal feed as a run.published or
+// run.unpublished event, and anchored on the public log, so an auditor sees
+// who made what public and when. Publications sealed before v2 are v1 and
+// carry no decided_by; each was the owner's. verdifax-verify --signals reads
+// v1 since v0.24.0 and v2 since v0.26.0.
 
-// RunPublication is one record made public or withdrawn by the account's
-// owner. It marshals as the exact bytes the server sent.
+// PublicationByOwner and PublicationByVerdifax are the values of
+// RunPublication.DecidedBy.
+const (
+	PublicationByOwner    = "owner"
+	PublicationByVerdifax = "verdifax_admin"
+)
+
+// RunPublication is one record made public or withdrawn. It marshals as the
+// exact bytes the server sent.
 type RunPublication struct {
 	Format string `json:"format"`
 	// Action is run.published or run.unpublished.
 	Action string `json:"action"`
-	RunID  int64  `json:"run_id"`
+	// DecidedBy is who decided: PublicationByOwner, or PublicationByVerdifax
+	// when a Verdifax admin key withdrew the record. Empty on a v1
+	// publication, which was the owner's.
+	DecidedBy string `json:"decided_by,omitempty"`
+	RunID     int64  `json:"run_id"`
 	// RecordHash is the record's own hash, so the publication binds the exact
 	// record, not only its number.
 	RecordHash Hex64 `json:"record_hash"`

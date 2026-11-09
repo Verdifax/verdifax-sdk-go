@@ -11,7 +11,7 @@ import (
 // The publication the server sends, with a field this SDK does not name, so
 // the exact-bytes rule is tested on it too (R130).
 var publicationAnswer = `{"ok":true,"run_id":41,"public":true,"public_bundle_url":"https://api.verdifax.com/public/runs/tok/bundle.json",` +
-	`"verify_url":"https://verdifax.com/verify/?pt=tok","publication":{"format":"verdifax.run-publication.v1","action":"run.published",` +
+	`"verify_url":"https://verdifax.com/verify/?pt=tok","publication":{"format":"verdifax.run-publication.v2","action":"run.published","decided_by":"owner",` +
 	`"run_id":41,"record_hash":"` + strings.Repeat("a", 64) + `","job_id":"loan-1","step_id":"verdict","changed_at":"2026-11-08T20:00:00Z",` +
 	`"signal":{"signal_account":"account-7","signal_sequence":9,"signal_previous_hash":"` + strings.Repeat("b", 64) + `"},` +
 	`"publication_hash":"` + strings.Repeat("c", 64) + `","later_field":12345678901234567890}}`
@@ -31,7 +31,8 @@ func TestPublishAndUnpublishRunPostToTheOwnerRoutes(t *testing.T) {
 		t.Fatalf("requests: %+v", *seen)
 	}
 	if !out.OK || out.RunID != 41 || !out.Public || out.PublicBundleURL == "" || out.Publication == nil ||
-		out.Publication.Action != SignalRunPublished || out.Publication.JobID != "loan-1" || out.Publication.Signal.Sequence != 9 {
+		out.Publication.Action != SignalRunPublished || out.Publication.DecidedBy != PublicationByOwner || out.Publication.JobID != "loan-1" ||
+		out.Publication.Signal.Sequence != 9 {
 		t.Fatalf("result: %+v", out)
 	}
 	// The publication marshals as the exact bytes the server sent, the field
