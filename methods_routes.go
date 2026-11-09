@@ -154,6 +154,17 @@ func (c *Client) GetPublicBundleByToken(ctx context.Context, token string) ([]by
 	return c.getRawBody(ctx, "/public/runs/"+url.PathEscape(token)+"/bundle.json")
 }
 
+// GetPublicReceiptByToken returns the sealed receipt of a published stopped
+// run (a refusal, a halt or a failure) that a share token points to, as the
+// exact JSON bytes the server sent: the same document the key holder reads
+// from the run's receipt route. No auth required.
+func (c *Client) GetPublicReceiptByToken(ctx context.Context, token string) ([]byte, error) {
+	if token == "" {
+		return nil, errors.New("verdifax: token is required")
+	}
+	return c.getRawBody(ctx, "/public/runs/"+url.PathEscape(token)+"/receipt.json")
+}
+
 func (c *Client) getRawBody(ctx context.Context, path string) ([]byte, error) {
 	var raw rawResponse
 	if getErr := c.doRequest(ctx, "GET", path, nil, &raw); getErr != nil {

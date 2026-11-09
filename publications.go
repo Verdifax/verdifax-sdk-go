@@ -67,10 +67,14 @@ type PublicationResult struct {
 	OK     bool  `json:"ok"`
 	RunID  int64 `json:"run_id"`
 	Public bool  `json:"public"`
-	// PublicBundleURL is the record's public link, while it is public.
-	PublicBundleURL string          `json:"public_bundle_url,omitempty"`
-	VerifyURL       string          `json:"verify_url"`
-	Publication     *RunPublication `json:"publication"`
+	// PublicBundleURL is where the record's audit bundle is served, while
+	// it is public and has one.
+	PublicBundleURL string `json:"public_bundle_url,omitempty"`
+	// PublicReceiptURL is where a stopped run's sealed receipt is served,
+	// while it is public; a stopped run has no bundle address (R156).
+	PublicReceiptURL string          `json:"public_receipt_url,omitempty"`
+	VerifyURL        string          `json:"verify_url"`
+	Publication      *RunPublication `json:"publication"`
 }
 
 // PublishRun makes one of the account's records public on its random link

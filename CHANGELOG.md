@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0
+
+- A published stopped run is served as its sealed receipt. `PublicationResult` has `PublicReceiptURL`, the address of a stopped run's receipt while it is public, `/public/runs/{token}/receipt.json`; a stopped run has no bundle address, so `PublicBundleURL` is empty for it. `verdifax-verify` checks the receipt address as it checks a saved receipt.
+- `GetPublicReceiptByToken(ctx, token)` reads a published stopped run's sealed receipt from `GET /public/runs/{token}/receipt.json`, as the exact bytes the server sent, with no key.
+- The user agent is `verdifax-sdk-go/1.7.0`.
+
 ## 1.6.0
 
 - The account owner publishes the account's records. `PublishRun(ctx, runID)` makes a record made by any key of the account public on its random link with `POST /account/runs/{id}/publish`, and `UnpublishRun` withdraws it with `/unpublish`, keeping the link for a later publish. Both need the owner key and answer a `PublicationResult`: the run's public state, its links while public, and the `RunPublication` the call sealed (nil when the run was already in the asked state). A publication, `verdifax.run-publication.v1`, names the run, its record hash, its job and step and the time, with its place in the account's signal feed, and marshals as the exact bytes the server sent. The service's admin key cannot publish another key's record.

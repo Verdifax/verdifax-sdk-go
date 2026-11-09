@@ -67,3 +67,18 @@ func TestPublishAndUnpublishRunPostToTheOwnerRoutes(t *testing.T) {
 		}
 	}
 }
+
+// A stopped run is published as its receipt: the answer names the receipt
+// address and no bundle address (R156).
+func TestPublishingAStoppedRunNamesItsReceiptAddress(t *testing.T) {
+	answer := `{"ok":true,"run_id":42,"public":true,"public_receipt_url":"https://api.verdifax.com/public/runs/tok/receipt.json",` +
+		`"verify_url":"https://verdifax.com/verify/?pt=tok&record=receipt","publication":null}`
+	c, _ := parityServer(t, Config{}, 200, answer)
+	out, err := c.PublishRun(context.Background(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.PublicReceiptURL != "https://api.verdifax.com/public/runs/tok/receipt.json" || out.PublicBundleURL != "" {
+		t.Fatalf("result: %+v", out)
+	}
+}

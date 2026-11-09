@@ -32,6 +32,7 @@ func TestRemainingRoutesCallTheirPaths(t *testing.T) {
 		{"/runs/7/artifacts", func(c *Client) error { _, callErr := c.GetRunArtifacts(ctx, 7); return callErr }},
 		{"/runs/7/bundle.json", func(c *Client) error { _, callErr := c.GetPublicBundle(ctx, 7); return callErr }},
 		{"/public/runs/a b/bundle.json", func(c *Client) error { _, callErr := c.GetPublicBundleByToken(ctx, "a b"); return callErr }},
+		{"/public/runs/a b/receipt.json", func(c *Client) error { _, callErr := c.GetPublicReceiptByToken(ctx, "a b"); return callErr }},
 	}
 	for _, entry := range calls {
 		c, seen := parityServer(t, Config{}, 200, `{"ok":true}`)
