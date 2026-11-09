@@ -39,6 +39,9 @@ type APIError struct {
 	Message       string
 	RecordHash    Hex64
 	SignedRequest string
+	// AivpTraceText is the text the AI review checked, on a run its review
+	// halted: Verdifax returns it once, and the halt receipt seals its hash.
+	AivpTraceText string
 }
 
 func (e *APIError) Error() string {

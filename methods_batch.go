@@ -29,22 +29,25 @@ type ExecuteBatchResponse struct {
 // client when it signed, which a customer can keep for verdifax-verify
 // --request.
 type ExecuteBatchResult struct {
-	Index                 int                `json:"index"`
-	OK                    bool               `json:"ok"`
-	RunID                 int64              `json:"run_id,omitempty"`
-	RecordHash            Hex64              `json:"record_hash,omitempty"`
-	SignedRequest         string             `json:"signed_request,omitempty"`
-	ManifestHash          Hex64              `json:"manifest_hash,omitempty"`
-	Manifest              *ExecutionManifest `json:"manifest,omitempty"`
-	Error                 string             `json:"error,omitempty"`
-	ErrorStage            string             `json:"error_stage,omitempty"`
-	DurationMS            int64              `json:"duration_ms"`
-	PartialManifest       *ExecutionManifest `json:"partial_manifest,omitempty"`
-	DenyReceipt           map[string]any     `json:"deny_receipt,omitempty"`
-	CCVHaltReceipt        map[string]any     `json:"ccv_halt_receipt,omitempty"`
-	MACCHaltReceipt       map[string]any     `json:"macc_halt_receipt,omitempty"`
-	AivpT4HaltReceipt     map[string]any     `json:"aivp_t4_halt_receipt,omitempty"`
-	AttestationGapReceipt map[string]any     `json:"attestation_gap_receipt,omitempty"`
+	Index             int                `json:"index"`
+	OK                bool               `json:"ok"`
+	RunID             int64              `json:"run_id,omitempty"`
+	RecordHash        Hex64              `json:"record_hash,omitempty"`
+	SignedRequest     string             `json:"signed_request,omitempty"`
+	ManifestHash      Hex64              `json:"manifest_hash,omitempty"`
+	Manifest          *ExecutionManifest `json:"manifest,omitempty"`
+	Error             string             `json:"error,omitempty"`
+	ErrorStage        string             `json:"error_stage,omitempty"`
+	DurationMS        int64              `json:"duration_ms"`
+	PartialManifest   *ExecutionManifest `json:"partial_manifest,omitempty"`
+	DenyReceipt       map[string]any     `json:"deny_receipt,omitempty"`
+	CCVHaltReceipt    map[string]any     `json:"ccv_halt_receipt,omitempty"`
+	MACCHaltReceipt   map[string]any     `json:"macc_halt_receipt,omitempty"`
+	AivpT4HaltReceipt map[string]any     `json:"aivp_t4_halt_receipt,omitempty"`
+	// AivpTraceText is the text the AI review checked on this row, returned
+	// once and not stored; its hash is sealed in the review.
+	AivpTraceText         string         `json:"aivp_trace_text,omitempty"`
+	AttestationGapReceipt map[string]any `json:"attestation_gap_receipt,omitempty"`
 }
 
 // ExecuteBatch sends up to MaxBatchRows runs in one request. With a

@@ -21,7 +21,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/1.8.0"
+	UserAgent      = "verdifax-sdk-go/1.9.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -214,8 +214,9 @@ func (c *Client) doRequestWith(ctx context.Context, httpClient *http.Client, met
 		errMsg := strings.TrimSpace(string(respBytes))
 		// Try to extract the orchestrator's structured error message.
 		var envelope struct {
-			Error      string `json:"error"`
-			RecordHash string `json:"record_hash"`
+			Error         string `json:"error"`
+			RecordHash    string `json:"record_hash"`
+			AivpTraceText string `json:"aivp_trace_text"`
 		}
 		if json.Unmarshal(respBytes, &envelope) == nil && envelope.Error != "" {
 			errMsg = envelope.Error
@@ -226,7 +227,8 @@ func (c *Client) doRequestWith(ctx context.Context, httpClient *http.Client, met
 		case http.StatusNotFound:
 			return &NotFoundError{Path: path, Message: errMsg}
 		default:
-			return &APIError{Status: resp.StatusCode, Path: path, Message: errMsg, RecordHash: envelope.RecordHash}
+			return &APIError{Status: resp.StatusCode, Path: path, Message: errMsg, RecordHash: envelope.RecordHash,
+				AivpTraceText: envelope.AivpTraceText}
 		}
 	}
 

@@ -127,6 +127,12 @@ type ExecuteResponse struct {
 	// by the client when it signed. Keep it for verdifax-verify
 	// --request.
 	SignedRequest string `json:"signed_request,omitempty"`
+
+	// AivpTraceText is the text the AI review checked, when a review ran on
+	// the run's AI output. Verdifax returns it once and does not store it;
+	// its SHA-256 is sealed in Manifest.AivpReview. Keep it for
+	// verdifax-verify --aivp-trace.
+	AivpTraceText string `json:"aivp_trace_text,omitempty"`
 }
 
 // ExecutionManifest is the sealed manifest. Every field
@@ -139,27 +145,31 @@ type ExecuteResponse struct {
 // in idiomatic Go style should adopt their own snake_case mapping
 // at the application layer if needed.
 type ExecutionManifest struct {
-	EnvelopeID              string `json:"EnvelopeID"`
-	EnvelopeHash            Hex64  `json:"EnvelopeHash"`
-	ManifestHash            Hex64  `json:"ManifestHash"`
-	DseCommitmentHash       Hex64  `json:"DseCommitmentHash,omitempty"`
-	TokOrderingHash         Hex64  `json:"TokOrderingHash,omitempty"`
-	DscFinalStateHash       Hex64  `json:"DscFinalStateHash,omitempty"`
-	NrepActorID             string `json:"NrepActorID,omitempty"`
-	NrepActorPublicKey      string `json:"NrepActorPublicKey,omitempty"`
-	NrepSignature           string `json:"NrepSignature,omitempty"`
-	AivpOutcome             string `json:"AivpOutcome,omitempty"`
-	AivpPiaHash             Hex64  `json:"AivpPiaHash,omitempty"`
-	AivpAdapterID           string `json:"AivpAdapterID,omitempty"`
-	AivpDecision            string `json:"AivpDecision,omitempty"`
-	EraseStatus             string `json:"EraseStatus,omitempty"`
-	ExecutionRegion         string `json:"ExecutionRegion,omitempty"`
-	FormalVerifierStatus    string `json:"FormalVerifierStatus,omitempty"`
-	HardwareAttestationHash Hex64  `json:"HardwareAttestationHash,omitempty"`
-	LedgerBackend           string `json:"LedgerBackend,omitempty"`
-	LedgerLeafHash          Hex64  `json:"LedgerLeafHash,omitempty"`
-	LedgerProofHash         Hex64  `json:"LedgerProofHash,omitempty"`
-	LogEntryID              string `json:"LogEntryID,omitempty"`
+	EnvelopeID         string `json:"EnvelopeID"`
+	EnvelopeHash       Hex64  `json:"EnvelopeHash"`
+	ManifestHash       Hex64  `json:"ManifestHash"`
+	DseCommitmentHash  Hex64  `json:"DseCommitmentHash,omitempty"`
+	TokOrderingHash    Hex64  `json:"TokOrderingHash,omitempty"`
+	DscFinalStateHash  Hex64  `json:"DscFinalStateHash,omitempty"`
+	NrepActorID        string `json:"NrepActorID,omitempty"`
+	NrepActorPublicKey string `json:"NrepActorPublicKey,omitempty"`
+	NrepSignature      string `json:"NrepSignature,omitempty"`
+	AivpOutcome        string `json:"AivpOutcome,omitempty"`
+	AivpPiaHash        Hex64  `json:"AivpPiaHash,omitempty"`
+	AivpAdapterID      string `json:"AivpAdapterID,omitempty"`
+	AivpDecision       string `json:"AivpDecision,omitempty"`
+	// AivpReview is the AI review's record of the answer it read, on runs
+	// sealed since the server's v1.10 manifest formula.
+	AivpReviewForm          string      `json:"AivpReviewForm,omitempty"`
+	AivpReview              *AivpReview `json:"AivpReview,omitempty"`
+	EraseStatus             string      `json:"EraseStatus,omitempty"`
+	ExecutionRegion         string      `json:"ExecutionRegion,omitempty"`
+	FormalVerifierStatus    string      `json:"FormalVerifierStatus,omitempty"`
+	HardwareAttestationHash Hex64       `json:"HardwareAttestationHash,omitempty"`
+	LedgerBackend           string      `json:"LedgerBackend,omitempty"`
+	LedgerLeafHash          Hex64       `json:"LedgerLeafHash,omitempty"`
+	LedgerProofHash         Hex64       `json:"LedgerProofHash,omitempty"`
+	LogEntryID              string      `json:"LogEntryID,omitempty"`
 }
 
 // ── Runs ────────────────────────────────────────────────────────
@@ -217,4 +227,27 @@ type VerifyResponse struct {
 type DCAEEngineHint struct {
 	AvailableAt   string `json:"available_at"`
 	EngineVersion string `json:"engine_version"`
+}
+
+// AivpReview is the AI review's record of one answer it read: the review
+// setup, the SHA-256 of the trace it checked, the checker, what the account
+// policy chose a contradiction finding does, the outcome and the finding.
+type AivpReview struct {
+	Formula              string       `json:"formula"`
+	PromptID             string       `json:"prompt_id"`
+	Model                string       `json:"model"`
+	TraceHash            Hex64        `json:"trace_hash"`
+	CheckerID            string       `json:"checker_id"`
+	ContradictionMode    string       `json:"contradiction_mode"`    // halt or record
+	ContradictionOutcome string       `json:"contradiction_outcome"` // clean, halted or recorded
+	Finding              *AivpFinding `json:"finding,omitempty"`
+}
+
+// AivpFinding is the contradiction the review's checker found: two trace
+// nodes, by id, and the opposing terms in them.
+type AivpFinding struct {
+	NodeA    string `json:"node_a"`
+	NodeB    string `json:"node_b"`
+	Term     string `json:"term"`
+	Opposite string `json:"opposite"`
 }
