@@ -39,6 +39,11 @@ type Account struct {
 	Tier      string `json:"tier"`
 	CreatedAt string `json:"created_at"`
 
+	// TimeZone is the second zone the account's reports show beside UTC:
+	// an IANA zone, "none" for UTC alone, or empty for the zone of the
+	// server's region.
+	TimeZone string `json:"time_zone,omitempty"`
+
 	// MemberKeys and OwnerKeys count the account's keys that are not
 	// revoked.
 	MemberKeys int `json:"member_keys"`
@@ -304,4 +309,30 @@ func (c *Client) AdminListAccounts(ctx context.Context) ([]Account, error) {
 		return nil, listErr
 	}
 	return out.Accounts, nil
+}
+
+// AccountTimeZone is the answer to SetAccountTimeZone.
+type AccountTimeZone struct {
+	OK        bool   `json:"ok"`
+	AccountID string `json:"account_id"`
+	TimeZone  string `json:"time_zone"`
+}
+
+// SetAccountTimeZone chooses the second time zone the account's audit
+// reports show beside UTC, with PUT /account/time-zone: an IANA zone such
+// as Europe/London, "none" for UTC alone, or "" for the zone of the
+// server's region, which an account that never chose sees. Needs the owner
+// key. It changes how times are displayed, never a sealed value.
+func (c *Client) SetAccountTimeZone(ctx context.Context, timeZone string) (*AccountTimeZone, error) {
+	if keyErr := c.requireAPIKey(); keyErr != nil {
+		return nil, keyErr
+	}
+	if len(timeZone) > 64 {
+		return nil, errors.New("verdifax: timeZone is longer than 64 characters")
+	}
+	out := &AccountTimeZone{}
+	if putErr := c.doRequest(ctx, "PUT", accountPath+"/time-zone", map[string]string{"time_zone": timeZone}, out); putErr != nil {
+		return nil, putErr
+	}
+	return out, nil
 }

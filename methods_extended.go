@@ -269,6 +269,59 @@ func (c *Client) DownloadAuditPDF(ctx context.Context, runID int64, format PDFFo
 	return err
 }
 
+// reportAnswerBody is the body of a report request that carries the AI's
+// answer.
+type reportAnswerBody struct {
+	Format       PDFFormat `json:"format,omitempty"`
+	AiOutputText string    `json:"ai_output_text"`
+}
+
+// DownloadAuditPDFWithAnswer is DownloadAuditPDF with the AI's exact answer
+// printed on the report's first page, marked as supplied by the caller.
+// Verdifax stores only the answer's SHA-256; the server prints the text only
+// when its SHA-256 is the hash the record seals, and refuses any other text
+// with a 422 *APIError. The text is used for this one report and kept nowhere.
+func (c *Client) DownloadAuditPDFWithAnswer(ctx context.Context, runID int64, format PDFFormat, aiOutputText string, w io.Writer) error {
+	if err := c.requireAPIKey(); err != nil {
+		return err
+	}
+	if runID <= 0 {
+		return fmt.Errorf("verdifax: runID must be > 0")
+	}
+	if aiOutputText == "" {
+		return errors.New("verdifax: aiOutputText is required")
+	}
+	return c.writeRawBody(ctx, "POST", fmt.Sprintf("/runs/%d/report.pdf", runID), reportAnswerBody{format, aiOutputText}, w)
+}
+
+// DownloadPublicAuditPDF writes the audit PDF of a published record that a
+// share token points to. No API key needed. With a non-empty aiOutputText
+// the report prints that answer, as DownloadAuditPDFWithAnswer does, only
+// when it is the answer the record seals.
+func (c *Client) DownloadPublicAuditPDF(ctx context.Context, token string, format PDFFormat, aiOutputText string, w io.Writer) error {
+	if token == "" {
+		return errors.New("verdifax: token is required")
+	}
+	path := "/public/runs/" + url.PathEscape(token) + "/report.pdf"
+	if aiOutputText != "" {
+		return c.writeRawBody(ctx, "POST", path, reportAnswerBody{format, aiOutputText}, w)
+	}
+	if format != "" {
+		path += "?format=" + url.QueryEscape(string(format))
+	}
+	return c.writeRawBody(ctx, "GET", path, nil, w)
+}
+
+// writeRawBody sends a request and writes the undecoded response body to w.
+func (c *Client) writeRawBody(ctx context.Context, method, path string, body any, w io.Writer) error {
+	var raw rawResponse
+	if err := c.doRequest(ctx, method, path, body, &raw); err != nil {
+		return err
+	}
+	_, err := w.Write(raw.Body)
+	return err
+}
+
 // ── CRES, deletion receipts ──────────────────────────────────
 
 // ListDeletionReceipts returns every CRES DeletionReceipt bound to

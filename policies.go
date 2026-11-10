@@ -66,6 +66,10 @@ type PolicyTestRequest struct {
 	Inputs       map[string]any `json:"inputs"`
 	Document     string         `json:"document,omitempty"`
 	DocumentHash Hex64          `json:"document_hash,omitempty"`
+	// AIOutputDeclared says whether the request being tried declares an AI
+	// output, as AIOutputText does on a run: a policy that requires an AI
+	// review refuses a step without one. Sent only when true.
+	AIOutputDeclared bool `json:"ai_output_declared,omitempty"`
 }
 
 // PolicyTestResult is which rule would fire on the sample inputs. Sealed

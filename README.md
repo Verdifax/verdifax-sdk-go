@@ -82,6 +82,8 @@ func main() {
 | `GetRunArtifacts(ctx, id)` | `GET /runs/{id}/artifacts` | required |
 | `GetRunReport(ctx, id)` | `GET /runs/{id}/report` | required |
 | `DownloadAuditPDF(ctx, id, format, w)` | `GET /runs/{id}/report.pdf` | required |
+| `DownloadAuditPDFWithAnswer(ctx, id, format, aiOutputText, w)` | `POST /runs/{id}/report.pdf`: prints the AI's answer when its SHA-256 is the sealed hash | required |
+| `DownloadPublicAuditPDF(ctx, token, format, aiOutputText, w)` | `GET` or `POST /public/runs/{token}/report.pdf` | none |
 | `GetAllowToken(ctx, id)` | `GET /runs/{id}/allow-token` | required |
 | `GetDenyReceipt(ctx, id)` | `GET /runs/{id}/deny-receipt` | required |
 | `GetCCVHaltReceipt(ctx, id)` | `GET /runs/{id}/ccv-halt-receipt` | required |
