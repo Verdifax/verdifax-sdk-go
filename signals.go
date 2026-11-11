@@ -81,12 +81,16 @@ const (
 	// SignalRunSealed: a successful run, so the feed is a complete account
 	// ledger.
 	SignalRunSealed = "run.sealed"
+	// SignalChainInterrupted: a sign-off or policy change the public log
+	// never confirmed; its place in its chain is closed by a sealed,
+	// anchored record naming the entry it would have made.
+	SignalChainInterrupted = "chain.interrupted"
 )
 
 // signalKinds is every kind the feed carries, in the server's order.
 var signalKinds = []string{SignalRunRefused, SignalRunHalted, SignalRunFailed, SignalPolicyChanged,
 	SignalSignOffRecorded, SignalApproverRegistered, SignalApproverRevoked, SignalKeyCreated, SignalKeyRevoked,
-	SignalRunPublished, SignalRunUnpublished, SignalChainGap, SignalRunSealed}
+	SignalRunPublished, SignalRunUnpublished, SignalChainGap, SignalRunSealed, SignalChainInterrupted}
 
 // SignalEvent is one event of the feed: a CloudEvent whose data is the
 // Verdifax event. A webhook delivers the same envelope.

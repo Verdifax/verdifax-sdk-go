@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.0
+
+Interrupted sign-offs and policy changes, exact records, and time limits.
+
+- The signal feed carries a new kind, `SignalChainInterrupted` (`chain.interrupted`): a sign-off or policy change whose public-log entry was never confirmed has its place closed by a sealed, anchored record naming the entry it would have made. `verdifax-verify --signals`, `--signoff-history` and `--policy-history` accept a skipped place through one since v0.29.0. Sign-offs, policy changes and feed events keep marshaling as the exact bytes the server sent, numbers above 2^53 included.
+- Every CI job has its own time limit.
+- The user agent is `verdifax-sdk-go/1.11.0`.
+
 ## 1.10.0
 
 Successful runs in the feed, restore gaps, a required AI review, reports that print the AI's answer, and the account's time zone.
