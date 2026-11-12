@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.14.0
+
+The owner's blocks on Verdifax, deleted records, and execute bodies read strictly.
+
+- `SetAccountSetting(ctx, setting, value, opts)` (owner key) sets one of the owner's two blocks with `PUT /account/settings/{setting}`: `AccountSettingOwnerReplacement` (`owner-replacement`), which stops Verdifax replacing or revoking the owner key, and `AccountSettingVerdifaxDeletion` (`verdifax-deletion`), which stops Verdifax deleting a record. The value is `SettingAllowed` or `SettingBlocked`. It returns the change sealed in the account's feed, an `AccountChange`, or nil when the value was already set.
+- `DeleteRun(ctx, runID, recordHash, opts)` (owner key) deletes one of the account's records with `POST /account/runs/{id}/delete` and returns its tombstone, a `RunDeletion` sealed in the feed. `recordHash` is the record you mean to delete: a completed run's record hash, or a stopped run's receipt hash.
+- Both are signed by the client's `SigningKey`, the owner key's request key. Verdifax never holds the owner's request key, so it cannot make a signature with it, and `verdifax-verify --signals --owner-request-key` confirms every owner change in the feed was signed with the owner's key. A client without one gets `ErrSigningKeyRequired` before anything is sent, and a bad setting, value, run number or hash is refused before sending too. The account number signed over is read with `GET /account` unless `OwnerChangeOptions.AccountID` gives it. `OwnerChangePreimage` returns the exact bytes signed, and makes no request. As `SignOff` does, each checks that the answer seals what it signed: the change's action, value and decider, or the tombstone's run, record hash and decider, and an owner signature with the signature, time and nonce sent and the signing key's public key. `SetAccountSetting` also accepts an `account_change` of null, when the value was already set, but refuses an answer with no `account_change`. Any other answer is an error.
+- `AdminDeleteRun(ctx, runID)` and `AdminReplaceOwnerKey(ctx, accountID)` (admin key) are Verdifax deleting a record and starting the replacement of a lost owner key, each sealed in the account's feed as Verdifax's decision and refused with a 409 `*APIError` while the owner blocks it. `AdminReplaceOwnerKey` emails a one-time link to the address on file and returns neither the link nor a key.
+- `Account` gains `OwnerReplacement` and `VerdifaxDeletion`, each `allowed` or `blocked`.
+- The signal feed carries two new kinds, `SignalAccountChanged` (`account.changed`) and `SignalRunDeleted` (`run.deleted`), and a key change may be `verdifax.key-change.v2`, which seals who decided it in `decided_by`. `verdifax-verify --signals` reads them since v0.33.0. Webhook verification is unchanged.
+- `PendingSignOffs(events)` leaves out a run whose `run.deleted` event is anywhere in the events given: a deleted record has nothing left to sign off. A `run.deleted` entry that cannot be read, or names no run, is an error.
+- The server now refuses a field it does not define in a `/execute`, `/execute/batch` or `/execute/verify-determinism` body, signed text included, with a 400 `*APIError` that names it. The SDK sends only fields the server defines, and a test holds every body it builds to that list. A key you put in `AttestedContext` or one of the four caller blocks must be one the server defines.
+- The user agent is `verdifax-sdk-go/1.14.0`.
+
 ## 1.13.0
 
 Sign-off read as the verifier reads it, and the sign-off history's head statement.

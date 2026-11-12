@@ -36,7 +36,8 @@ type AttestRequest struct {
 	AIOutputText string
 
 	// AttestedContext carries caller-attested actor + decision
-	// metadata. Open schema; surfaces in the audit bundle.
+	// metadata, surfaced in the audit bundle. The server defines its
+	// fields, as described on ExecuteRequest, and refuses any other.
 	AttestedContext map[string]any
 
 	// ReproducibilityContext is the runtime the caller declares for

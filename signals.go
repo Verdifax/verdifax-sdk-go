@@ -1,9 +1,14 @@
 // signals.go, the signal feed. Every control signal Verdifax records for
 // an account, a refused, halted or failed run, a policy change, a
-// sign-off, an approver key or a member or feed key registered or
-// revoked, takes the next place in the account's feed. Each event's
-// place and the previous event's hash are sealed inside the event's own
-// entry before that entry is anchored on the public log.
+// sign-off, an approver key or a member, feed or owner key registered or
+// revoked, a change to the account's settings or to a key's terms, or a
+// deleted record, takes the next place in the account's feed. Each
+// event's place and the previous event's hash are sealed inside the
+// event's own entry before that entry is anchored on the public log. A
+// key change's entry is verdifax.key-change.v2, which seals decided_by:
+// owner, or verdifax_admin for a key Verdifax created or revoked. A
+// verdifax.key-change.v1 entry carries no decided_by; each was the
+// owner's.
 //
 // A feed key reads the feed on GET /signals and nothing else. The owner
 // key reads the same feed on GET /account/signals, and creates and
@@ -85,12 +90,21 @@ const (
 	// never confirmed; its place in its chain is closed by a sealed,
 	// anchored record naming the entry it would have made.
 	SignalChainInterrupted = "chain.interrupted"
+	// SignalAccountChanged: a change to the account's settings or to one of
+	// its keys' terms, by the owner or by Verdifax; the entry is an
+	// AccountChange.
+	SignalAccountChanged = "account.changed"
+	// SignalRunDeleted: one of the account's records was deleted, by the
+	// owner or by Verdifax; the entry is the RunDeletion tombstone, which
+	// stays in the feed.
+	SignalRunDeleted = "run.deleted"
 )
 
 // signalKinds is every kind the feed carries, in the server's order.
 var signalKinds = []string{SignalRunRefused, SignalRunHalted, SignalRunFailed, SignalPolicyChanged,
 	SignalSignOffRecorded, SignalApproverRegistered, SignalApproverRevoked, SignalKeyCreated, SignalKeyRevoked,
-	SignalRunPublished, SignalRunUnpublished, SignalChainGap, SignalRunSealed, SignalChainInterrupted}
+	SignalRunPublished, SignalRunUnpublished, SignalChainGap, SignalRunSealed, SignalChainInterrupted,
+	SignalAccountChanged, SignalRunDeleted}
 
 // SignalEvent is one event of the feed: a CloudEvent whose data is the
 // Verdifax event. A webhook delivers the same envelope.
@@ -766,11 +780,13 @@ func webhookBodyIDMatches(body []byte, id string) bool {
 // sign-off on the run when there is one (a job is signed off on its final
 // step), otherwise the latest sign-off on the record itself. Pass the
 // account's feed from its start, or a page that includes each run's
-// sign-offs, so a sign-off recorded later is seen. An entry that cannot be
-// read is an error.
+// sign-offs, so a sign-off recorded later is seen. A run whose deletion, a
+// run.deleted event, is anywhere in events is left out: a deleted record
+// has nothing left to sign off. An entry that cannot be read, or a
+// run.deleted entry that names no run, is an error.
 func PendingSignOffs(events []SignalEvent) ([]int64, error) {
 	var order []int64
-	required := map[int64]bool{}
+	required, deleted := map[int64]bool{}, map[int64]bool{}
 	// The latest decision on each run, by kind: a job's governs its record's.
 	latestJob, latestRecord := map[int64]string{}, map[int64]string{}
 	for _, e := range events {
@@ -804,10 +820,24 @@ func PendingSignOffs(events []SignalEvent) ([]int64, error) {
 			case "record":
 				latestRecord[entry.Target.RunID] = entry.Decision
 			}
+		case SignalRunDeleted:
+			var entry struct {
+				RunID int64 `json:"run_id"`
+			}
+			if err := json.Unmarshal(e.Data.Entry, &entry); err != nil {
+				return nil, fmt.Errorf("verdifax: read the run.deleted entry of event %s: %w", e.ID, err)
+			}
+			if entry.RunID <= 0 {
+				return nil, fmt.Errorf("verdifax: the run.deleted entry of event %s names no run", e.ID)
+			}
+			deleted[entry.RunID] = true
 		}
 	}
 	pending := []int64{}
 	for _, id := range order {
+		if deleted[id] {
+			continue
+		}
 		inForce, governed := latestJob[id]
 		if !governed {
 			inForce = latestRecord[id]

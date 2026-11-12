@@ -44,6 +44,12 @@ type Account struct {
 	// server's region.
 	TimeZone string `json:"time_zone,omitempty"`
 
+	// OwnerReplacement and VerdifaxDeletion are the owner's two blocks on
+	// Verdifax, SettingAllowed or SettingBlocked, each set with
+	// SetAccountSetting and each change sealed in the account's feed.
+	OwnerReplacement string `json:"owner_replacement,omitempty"`
+	VerdifaxDeletion string `json:"verdifax_deletion,omitempty"`
+
 	// MemberKeys and OwnerKeys count the account's keys that are not
 	// revoked.
 	MemberKeys int `json:"member_keys"`

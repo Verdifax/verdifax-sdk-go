@@ -71,3 +71,33 @@ func TestPendingSignOffsReadsAJobSignOffAsTheVerifierDoes(t *testing.T) {
 		t.Fatalf("pending = %v, want [21]", got)
 	}
 }
+
+// A run whose record was deleted has nothing left to sign off: a run.deleted
+// event for it, before or after its run.sealed event in the events given,
+// leaves it out, and another run still needing a sign-off stays pending.
+func TestPendingSignOffsLeavesOutADeletedRun(t *testing.T) {
+	deletion := func(run int64) map[string]any {
+		return map[string]any{"format": "verdifax.run-deletion.v1", "decided_by": "owner", "run_id": run,
+			"record_hash": "abababababababababababababababababababababababababababababababab"}
+	}
+	events := []SignalEvent{
+		feedEvent(t, 1, SignalRunDeleted, deletion(32)),
+		feedEvent(t, 2, SignalRunSealed, map[string]any{"run_id": 30, "signoff_required": true}),
+		feedEvent(t, 3, SignalRunSealed, map[string]any{"run_id": 31, "signoff_required": true}),
+		feedEvent(t, 4, SignalRunSealed, map[string]any{"run_id": 32, "signoff_required": true}),
+		feedEvent(t, 5, SignalRunDeleted, deletion(30)),
+	}
+	got, err := PendingSignOffs(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(got) != "[31]" {
+		t.Fatalf("pending = %v, want [31]", got)
+	}
+	for i, entry := range []json.RawMessage{json.RawMessage(`{`), json.RawMessage(`{"run_id":0}`), json.RawMessage(`{}`)} {
+		bad := []SignalEvent{events[1], {ID: "account-7/9", Data: SignalData{Kind: SignalRunDeleted, Entry: entry}}}
+		if _, badErr := PendingSignOffs(bad); badErr == nil {
+			t.Fatalf("case %d: an unreadable run.deleted entry was accepted", i)
+		}
+	}
+}

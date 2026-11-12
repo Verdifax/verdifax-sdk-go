@@ -78,9 +78,17 @@ type ExecuteRequest struct {
 	ExpectedPolicyHash Hex64 `json:"expected_policy_hash,omitempty"`
 
 	// AttestedContext carries caller-attested actor + decision
-	// metadata. Schema is open, any JSON-serializable structure
-	// the caller wants surfaced in the audit bundle. The client
-	// derives its attested flag from the fields provided.
+	// metadata, surfaced in the audit bundle. The server defines its
+	// fields: actor_id, actor_role, actor_signature,
+	// authorization_policy, decision_kind, decision_note,
+	// decision_result, model_name, model_provider, model_temperature,
+	// model_version and prompt_hash. The client derives its attested
+	// flag from the fields provided.
+	//
+	// The server refuses a field it does not define, in this block, in
+	// the four blocks below and in the request itself, with a 400
+	// *APIError that names the field. The SDK itself adds no field the
+	// server does not define.
 	AttestedContext map[string]any `json:"attested_context,omitempty"`
 
 	// ReproducibilityContext is the runtime the caller declares for

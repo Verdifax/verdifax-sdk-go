@@ -77,14 +77,17 @@
 // ListAccountKeys, RevokeAccountKey, RegisterAccountRequestKey,
 // ClearAccountRequestKey, ListAccountRuns, ExportAccountRuns,
 // ExportAccountRunsCSV, UploadAccountPolicy, ListAccountPolicies,
-// GetAccountPolicy, TestAccountPolicy, GetAccountPolicyHistory and
-// ActivateAccountPolicy, and cannot run anything itself. An admin
+// GetAccountPolicy, TestAccountPolicy, GetAccountPolicyHistory,
+// ActivateAccountPolicy, SetAccountSetting and DeleteRun, and cannot run
+// anything itself. SetAccountSetting and DeleteRun are signed by the
+// owner key's request key, so Verdifax cannot make them. An admin
 // creates accounts with AdminCreateAccount and lists them with
-// AdminListAccounts. The account number is a label Verdifax assigned,
-// not a verified company identity. An account policy is the customer's
-// own, and Verdifax did not write, review or approve it. Every key in
-// the account must pass it on top of its own policy, and a run is
-// admitted only when both allow. The account's view covers the runs its
+// AdminListAccounts; AdminDeleteRun and AdminReplaceOwnerKey are
+// Verdifax's changes, refused while the owner blocks them. The account
+// number is a label Verdifax assigned, not a verified company identity.
+// An account policy is the customer's own, and Verdifax did not write,
+// review or approve it. Every key in the account must pass it on top of
+// its own policy, and a run is admitted only when both allow. The account's view covers the runs its
 // keys made through Verdifax, not runs made elsewhere.
 //
 // # Sign-off

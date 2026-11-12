@@ -669,7 +669,7 @@ func TestCreateWebhookSendsTheAddressAndTypes(t *testing.T) {
 	}
 	all := append([]string(nil), signalKinds...)
 	if _, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/all", all); createErr != nil {
-		t.Fatalf("all nine kinds: %v", createErr)
+		t.Fatalf("every kind: %v", createErr)
 	}
 	for status, message := range map[int]string{409: "an account may hold 10 webhook subscriptions", 503: "webhooks need the deployment's KMS key",
 		400: "the webhook address must be https on a public host"} {
@@ -688,7 +688,7 @@ func TestCreateWebhookRefusesBadInputBeforeSending(t *testing.T) {
 		types   []string
 	}{
 		{"", nil}, {"http://hooks.example.com", nil}, {"HTTPS://hooks.example.com", nil}, {"hooks.example.com", nil}, {" https://hooks.example.com", nil},
-		{"https://hooks.example.com", []string{"run.deleted"}},
+		{"https://hooks.example.com", []string{"run.erased"}},
 		{"https://hooks.example.com", []string{"com.verdifax.run.refused"}},
 		{"https://hooks.example.com", []string{""}},
 		{"https://hooks.example.com", []string{SignalRunHalted, SignalRunHalted}},

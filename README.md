@@ -124,6 +124,8 @@ func main() {
 | `TestAccountPolicy(ctx, req)` | `POST /account/policies/test` | owner |
 | `GetAccountPolicyHistory(ctx)` | `GET /account/policies/history` | owner |
 | `ActivateAccountPolicy(ctx, documentHash)` | `GET /account/policies`, then `POST /account/policies/{document_hash}/activate` | owner |
+| `SetAccountSetting(ctx, setting, value, opts)` | `GET /account` unless `opts` gives the account, then `PUT /account/settings/{setting}`, signed | owner |
+| `DeleteRun(ctx, id, recordHash, opts)` | `GET /account` unless `opts` gives the account, then `POST /account/runs/{id}/delete`, signed | owner |
 | `RegisterApprover(ctx, req)` | `POST /account/approvers` | owner |
 | `ListApprovers(ctx)` | `GET /account/approvers` | owner |
 | `RevokeApprover(ctx, id)` | `DELETE /account/approvers/{id}` | owner |
@@ -147,12 +149,14 @@ func main() {
 | `AdminErase(ctx, req)` | `POST /admin/erase` | admin |
 | `AdminCreateAccount(ctx, req)` | `POST /admin/accounts` | admin |
 | `AdminListAccounts(ctx)` | `GET /admin/accounts` | admin |
+| `AdminDeleteRun(ctx, id)` | `POST /admin/runs/{id}/delete`, refused while the owner blocks Verdifax deletion | admin |
+| `AdminReplaceOwnerKey(ctx, accountID)` | `POST /admin/accounts/{id}/owner-key/replace`, refused while the owner blocks replacement | admin |
 
 "owner" means the account's owner key. See [Accounts](#accounts). A feed key reads the signal feed and nothing else. See [Signal feed](#signal-feed).
 
 `client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
-These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `SignOffPreimage`, `ApproverKeyProof`, `SignalEventHash`, `VerifyWebhook`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
+These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `OwnerChangePreimage`, `SignOffPreimage`, `ApproverKeyProof`, `SignalEventHash`, `VerifyWebhook`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
 
 `GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken`, `GetPolicyHistory`, `GetSignOffHistory` and `GetFailureReceipt` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
 
@@ -411,6 +415,30 @@ What an account is, and what it is not:
 
 `ExportAccountRuns` returns a `RunsExport`, as `ExportRuns` does. Both carry `AccountID`, and `AccountPolicyDocuments` and `AccountPolicyHistory` once the account has stored a policy. `AccountPolicyHistory` and `GetAccountPolicyHistory` keep the exact JSON bytes the server sent, so save them unchanged. `RevokeAccountKey` returns a `*NotFoundError` for a key in another account and for an owner key.
 
+### The owner's blocks and deleted records
+
+The owner holds two blocks on Verdifax. While `owner-replacement` is blocked, Verdifax cannot replace or revoke the owner key or start a replacement. While `verdifax-deletion` is blocked, Verdifax cannot delete one of the account's records. `GetAccount` reports both as `OwnerReplacement` and `VerdifaxDeletion`. Every change is sealed in the account's signal feed with who decided, and `verdifax-verify --signals` fails a feed that shows a Verdifax replacement or deletion after the owner's block.
+
+```go
+// The owner's client signs with the owner key's registered request key.
+set, err := owner.SetAccountSetting(ctx, verdifax.AccountSettingVerdifaxDeletion, verdifax.SettingBlocked, nil)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(set.Value, set.AccountChange != nil) // nil when it was already blocked
+
+// The owner deletes a record it read: the run and its record hash are signed.
+deleted, err := owner.DeleteRun(ctx, runID, recordHash, nil)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(deleted.RunDeletion.DeletionHash)
+```
+
+`SetAccountSetting` and `DeleteRun` sign with the client's `SigningKey` over the account number, the change and its subject: the value for a setting, `RUN_ID:RECORD_HASH` for a deletion. `OwnerChangePreimage` returns the exact bytes. Verdifax never holds the owner's request key, so it cannot make a signature with it, and `verdifax-verify --signals --owner-request-key` confirms every owner change in the feed was signed with the owner's key. A client without a `SigningKey` gets `ErrSigningKeyRequired`, and a bad setting, value, run number or record hash is refused, before anything is sent. The account number is read with `GET /account` unless `OwnerChangeOptions.AccountID` gives it. Each checks that the answer seals exactly what it signed, and returns an error otherwise: `SetAccountSetting` accepts an `account_change` that is the change it signed, or null when the value was already set, and refuses any other answer, including one with no `account_change` field; `DeleteRun` accepts only a `run_deletion` that is the deletion it signed. `recordHash` is a completed run's `RecordHash`, or a stopped run's receipt hash. A public record is withdrawn with `UnpublishRun` before it can be deleted. The owner's own deletions are never blocked.
+
+`AdminDeleteRun` and `AdminReplaceOwnerKey` are Verdifax's side, each sealed in the account's feed as Verdifax's decision and refused with a 409 `*APIError` while the owner blocks it. `AdminReplaceOwnerKey` takes the account's number, N in `account-N`, and emails a one-time link to the address on file. Its answer carries neither the link nor a key: the new owner key is made when the owner opens the link, and the claim page, not the SDK, calls `POST /owner-key/claim`.
+
 To put a new customer key in an existing account, an admin passes its number: `admin.AdminCreateKey(ctx, "payments-service", verdifax.AdminCreateKeyOptions{AccountID: 7})`. Without it, the key gets an account of its own. A key never moves to another account.
 
 ## Sign-off
@@ -513,7 +541,7 @@ The target names the result by what its public-log entry covers. A record's `Dig
 
 ## Signal feed
 
-Every control signal Verdifax recorded for the account is one event in the account's feed, in order, each with its sealed entry: a refused, halted or failed run, a policy change, a sign-off, an approver key registered or revoked, and a member or feed key created or revoked. Each event's place and the previous event's hash are sealed inside its entry before that entry is anchored on the public log. The feed shows the signals Verdifax recorded for the account. It cannot show a signal Verdifax never recorded.
+Every control signal Verdifax recorded for the account is one event in the account's feed, in order, each with its sealed entry, or, for an event whose record was deleted, that record's tombstone: a successful run (`run.sealed`), a refused, halted or failed run, a policy change, a sign-off, an approver key registered or revoked, a member, feed or owner key created or revoked, a record made public or withdrawn (`run.published`, `run.unpublished`), a change to the account or to a key's terms (`account.changed`), a deleted record's tombstone (`run.deleted`), a restore gap (`chain.gap`) and an interrupted entry (`chain.interrupted`). A key change's entry is `verdifax.key-change.v2`, which seals `decided_by`: `owner`, or `verdifax_admin` for a key Verdifax created or revoked. A `verdifax.key-change.v1` entry carries no `decided_by`; each was the owner's. Each event's place and the previous event's hash are sealed inside its entry before that entry is anchored on the public log. The feed shows the signals Verdifax recorded for the account. It cannot show a signal Verdifax never recorded.
 
 A feed key reads the feed and nothing else. The owner key creates one with `CreateFeedKey` and revokes it with `RevokeFeedKey`.
 
@@ -542,7 +570,7 @@ if errors.As(err, &stopped) {
 
 `GetSignals` reads one page: the events after `After`, oldest first, at most `Limit` (1 to 500, 100 by default), held open up to `Wait` (a whole number of seconds from 0 to 25) when there is no new event yet. The HTTP timeout of a feed read is at least its wait plus 30 seconds, whatever the client's own timeout. `FollowSignals` reads each page from the page before's `next_after`, holds each read open for 25 seconds by default, and retries a failed read with the client's retry policy. It refuses a page that would make it skip or repeat an event. It stops when the handler returns an error or the context ends, with a `*FollowSignalsError` whose `After` is the last sequence the handler finished, so following again from there loses nothing. A handler returns `verdifax.ErrStopFollowing` to stop without an error. Both refuse a bad `After`, `Limit` or `Wait` before sending anything. Set `AsOwner` to read the feed with the owner key on `GET /account/signals`.
 
-`verdifax.PendingSignOffs(events)` returns, in feed order, the runs whose allowing policy rule requires a person's sign-off (their `run.sealed` event says `signoff_required`) and on which no approval is in force, read as `verdifax-verify` reads it: the latest sign-off on the run's whole job governs when there is one, and otherwise the latest sign-off on its record; a receipt sign-off does not count. Pass the feed from its start, or pages that include each run's sign-offs. It makes no request.
+`verdifax.PendingSignOffs(events)` returns, in feed order, the runs whose allowing policy rule requires a person's sign-off (their `run.sealed` event says `signoff_required`) and on which no approval is in force, read as `verdifax-verify` reads it: the latest sign-off on the run's whole job governs when there is one, and otherwise the latest sign-off on its record; a receipt sign-off does not count. A run whose `run.deleted` event is in the events given is left out, since a deleted record has nothing left to sign off. Pass the feed from its start, or pages that include each run's sign-offs. It makes no request.
 
 `SignalData.Entry` is the sealed entry as the exact JSON bytes the server sent. `json.Marshal` the events you read to a file and check it with `verdifax-verify --signals FILE`. `SignalEventHash` returns an event's hash: the SHA-256 of `verdifax.signal.v1`, the kind, the entry's hash, the account, the sequence and the previous event's hash, joined by zero bytes.
 
@@ -603,7 +631,7 @@ Pass `verdifax.WithJob(link)` to place the response in a job. `RecordHash` and `
 
 ## Optional execute fields
 
-`ExecuteRequest` and `AttestRequest` accept `AttestedContext`, `ReproducibilityContext`, `RequestSubstance`, `AuthorizationChain`, `RegulatoryScaffolding` and `CausalGraph`, on `Execute`, `Attest`, `ExecuteBatch` and `VerifyDeterminism`. Each is recorded as supplied and Verdifax does not check it. The client derives `attested` and `Declared` from the fields you provide. Leave out `origin.source_ip_hash` and `origin.user_agent_hash` in `RequestSubstance`: the server computes them. `Execute`, `Attest` and `VerifyDeterminism` refuse them before sending, and a batch row that sets them fails in `Results`.
+`ExecuteRequest` and `AttestRequest` accept `AttestedContext`, `ReproducibilityContext`, `RequestSubstance`, `AuthorizationChain`, `RegulatoryScaffolding` and `CausalGraph`, on `Execute`, `Attest`, `ExecuteBatch` and `VerifyDeterminism`. In a completed run's sealed record each is recorded as supplied, except the values the server observes itself (in `request_substance`, `latency.total_ms`, the authentication method and key, and the origin hashes it fills; in `regulatory_scaffolding`, empty data-residency regions it fills), and Verdifax does not check that what you declare is true. A refused or halted run's receipt holds none of these blocks, but its `receipt_context` seals the declared policy inputs (such as subject and object identifiers) when the policy names its author and its rules ran. The server defines the fields of each block, and refuses a field it does not define, there or anywhere in the request, with a 400 `*APIError` that names it. The SDK itself adds none. The client derives `attested` and `Declared` from the fields you provide. Leave out `origin.source_ip_hash` and `origin.user_agent_hash` in `RequestSubstance`: the server computes them. `Execute`, `Attest` and `VerifyDeterminism` refuse them before sending, and a batch row that sets them fails in `Results`.
 
 They also accept `PolicyContext` and `ExpectedPolicyHash`, which the SDK checks before sending, as described under Policies.
 
@@ -615,7 +643,7 @@ They also accept `PolicyContext` and `ExpectedPolicyHash`, which the SDK checks 
 
 ## Determinism check
 
-`VerifyDeterminism` runs one payload twice on the server and compares the manifest hashes. `Deterministic` is true when both runs ended `ok` and the two hashes match. Both runs are recorded, with the status `probe`.
+`VerifyDeterminism` runs one payload twice on the server and compares the manifest hashes. `Deterministic` is true when both runs ended `ok` and the two hashes match. Both runs are recorded, with the status `probe`, or `stage_error` for a replay that sealed nothing or whose record could not be anchored on the probe's in-process ledger.
 
 ## Authentication
 
@@ -636,7 +664,7 @@ After that, the orchestrator stores only its hash.
 
 ## Request signing
 
-A trial key, which is what a pilot receives, needs a request key: it seals nothing until one is registered, and the key can then be replaced but not cleared. On a production key, request signing is optional, and a client with no signing key sends the same requests as before.
+A trial key, which is what a pilot receives, needs a request key: it seals nothing until one is registered. Its holder can then replace the request key but not clear it; only Verdifax can clear it, for a holder who lost it, after which the trial key again seals nothing until a new one is registered, and for a key in an account the clearing is sealed in that account's feed as an account change. On a production key, request signing is optional, and a client with no signing key sends the same requests as before.
 
 You can register an Ed25519 public key on your API key, so that each run must also be signed with a private key that only you hold. The key pair is created on your machine, and Verdifax receives only the public key.
 
@@ -700,8 +728,10 @@ A signature shows who requested the run, not that they accepted the outcome.
 
 ## Trust model
 
-This SDK only mediates HTTP I/O, it does NOT verify sealed
-manifests on its own. For offline verification with no Verdifax
+This SDK does NOT verify sealed
+manifests or records on its own. Besides its HTTP calls, it signs
+requests and owner changes and computes a few hashes and checks
+(signal event hashes and webhook signatures). For offline verification with no Verdifax
 dependency, use the open-source [`verdifax-verify`](https://github.com/Verdifax/verdifax-verify)
 CLI, v0.17.2 or later (signed binaries with SLSA provenance on its GitHub
 Releases), which checks both audit bundles and deny or halt receipts.
