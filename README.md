@@ -75,7 +75,7 @@ func main() {
 | `VerifyDeterminism(ctx, req)` | `POST /execute/verify-determinism` | required |
 | `GetRun(ctx, id)` | `GET /runs/{id}` | required |
 | `VerifyRun(ctx, id)` | `GET /runs/{id}/verify` | required |
-| `ListRuns(ctx, params)` | `GET /runs` | required |
+| `ListRuns(ctx, params)` | `GET /runs`. A value the server cannot read is a 400 `*APIError` unless `Lenient` is set; `SearchRunsParams`, `ListAttestationsParams` and `ListAccountRuns` take `Lenient` too | required |
 | `SearchRuns(ctx, params)` | `GET /runs/search` | required |
 | `ExportRuns(ctx, params)` | `GET /runs/export` | required |
 | `ExportRunsCSV(ctx, params)` | `GET /runs/export?format=csv` | required |
@@ -84,6 +84,7 @@ func main() {
 | `DownloadAuditPDF(ctx, id, format, w)` | `GET /runs/{id}/report.pdf` | required |
 | `DownloadAuditPDFWithAnswer(ctx, id, format, aiOutputText, w)` | `POST /runs/{id}/report.pdf`: prints the AI's answer when its SHA-256 is the sealed hash | required |
 | `DownloadPublicAuditPDF(ctx, token, format, aiOutputText, w)` | `GET` or `POST /public/runs/{token}/report.pdf` | none |
+| `DownloadAuditPDFWithOptions(ctx, id, format, opts, w)`, `DownloadPublicAuditPDFWithOptions(ctx, token, format, opts, w)` | The same routes with `AuditPDFOptions{AiOutputText, Fallback}`. An unknown format is a 400 `*APIError` unless `Fallback` is `FallbackComprehensive` | required / none |
 | `GetAllowToken(ctx, id)` | `GET /runs/{id}/allow-token` | required |
 | `GetDenyReceipt(ctx, id)` | `GET /runs/{id}/deny-receipt` | required |
 | `GetCCVHaltReceipt(ctx, id)` | `GET /runs/{id}/ccv-halt-receipt` | required |
@@ -96,6 +97,8 @@ func main() {
 | `GetAttestation(ctx, id)` | `GET /attestations/{id}` | required |
 | `GetPublicBundle(ctx, id)` | `GET /runs/{id}/bundle.json` | none |
 | `GetPublicBundleByToken(ctx, token)` | `GET /public/runs/{token}/bundle.json` | none |
+| `GetPublicSignOff(ctx, id)` | `GET /runs/{id}/signoff.json`: the sign-off a published run's audit report prints, and its job's decision in force | none |
+| `GetPublicSignOffByToken(ctx, token)` | `GET /public/runs/{token}/signoff.json` | none |
 | `DCAEVerify(ctx, bundle)` | `POST /dcae/verify` | none |
 | `UploadPolicy(ctx, document)` | `POST /policies` | required |
 | `ListPolicies(ctx)` | `GET /policies` | required |
@@ -333,7 +336,9 @@ Then run `verdifax-verify --policy-history policy-history.json` on the saved fil
 
 `ActivatePolicy` reads `ChainID` and `NewestActivationHash` with `GET /policies` and names that change. A client with a `SigningKey` also signs the change with it, which the server requires once a request key is registered. A client without one sends no signature. A rollback is one more change, so the change it undoes stays on the record. An HTTP 409 comes back as an `*APIError` with the server's message: the chain moved because another change came first, or the document is not yet effective. It is not retried. `PolicyActivationApproval` builds the same signature without sending it, and `PolicyActivationPreimage` returns the bytes it signs.
 
-`PolicyContext` takes `ActorType` (`agent`, `user`, `service` or `system`), `MFASatisfied`, `SessionAgeSeconds` (not negative), `ObjectType` (`text`, `transaction`, `code`, `data`, `model` or `file`), `ObjectID` (at most 256 bytes) and `Classification` (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`, `TOP_SECRET` or `TS_SCI`). `ActorType`, `MFASatisfied` and `SessionAgeSeconds` describe the attested actor, so a run that sets one of them must also carry `AttestedContext` with the actor; `ObjectType`, `ObjectID` and `Classification` work without it. `ExpectedPolicyHash` names the policy hash the run expects: when another policy is active, the server refuses the run with HTTP 409. The SDK refuses a value outside these before sending, on `Execute`, `Attest`, each batch row, `VerifyDeterminism`, `Job.Step` and the provider helpers. Decoding a `PolicyContext` from JSON refuses an unknown field, a null and a value of the wrong type, so a misspelt field is never dropped. On a client with a `SigningKey`, both fields are inside `signed_request`.
+`PolicyContext` takes `ActorType` (`agent`, `user`, `service` or `system`), `MFASatisfied`, `SessionAgeSeconds` (not negative), `ObjectType` (`text`, `transaction`, `code`, `data`, `model` or `file`), `ObjectID` (at most 256 bytes), `Classification` (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`, `TOP_SECRET` or `TS_SCI`) and `DataQuality` (below). `ActorType`, `MFASatisfied` and `SessionAgeSeconds` describe the attested actor, so a run that sets one of them must also carry `AttestedContext` with the actor; `ObjectType`, `ObjectID` and `Classification` work without it. `ExpectedPolicyHash` names the policy hash the run expects: when another policy is active, the server refuses the run with HTTP 409. The SDK refuses a value outside these before sending, on `Execute`, `Attest`, each batch row, `VerifyDeterminism`, `Job.Step` and the provider helpers. Decoding a `PolicyContext` from JSON refuses an unknown field, a null and a value of the wrong type, so a misspelt field is never dropped. On a client with a `SigningKey`, both fields are inside `signed_request`.
+
+`PolicyContext.DataQuality` is your declaration about the data the decision used: `Source` (at most 200 bytes), `AsOf` (a time such as `2026-11-11T09:00:00Z` or `2026-11-11T09:00:00+05:30`) and up to 50 `Checks`, each a distinct `Name` of at most 100 bytes and a `Result` of `pass`, `fail` or `warn`. It needs no attested actor. It is sealed with the other values, a policy's `data_quality` condition can require and test it, and Verdifax judges none of it. The SDK refuses a declaration the server would refuse before sending.
 
 A policy judges what you declared. It cannot show the declared facts are true.
 
@@ -534,6 +539,8 @@ if errors.As(err, &stopped) {
 ```
 
 `GetSignals` reads one page: the events after `After`, oldest first, at most `Limit` (1 to 500, 100 by default), held open up to `Wait` (a whole number of seconds from 0 to 25) when there is no new event yet. The HTTP timeout of a feed read is at least its wait plus 30 seconds, whatever the client's own timeout. `FollowSignals` reads each page from the page before's `next_after`, holds each read open for 25 seconds by default, and retries a failed read with the client's retry policy. It refuses a page that would make it skip or repeat an event. It stops when the handler returns an error or the context ends, with a `*FollowSignalsError` whose `After` is the last sequence the handler finished, so following again from there loses nothing. A handler returns `verdifax.ErrStopFollowing` to stop without an error. Both refuse a bad `After`, `Limit` or `Wait` before sending anything. Set `AsOwner` to read the feed with the owner key on `GET /account/signals`.
+
+`verdifax.PendingSignOffs(events)` returns, in feed order, the runs whose allowing policy rule requires a person's sign-off (their `run.sealed` event says `signoff_required`) and on which no approval is in force: the last sign-off on the record, if any, is not an approval. Pass the feed from its start, or pages that include each run's sign-offs. It makes no request.
 
 `SignalData.Entry` is the sealed entry as the exact JSON bytes the server sent. `json.Marshal` the events you read to a file and check it with `verdifax-verify --signals FILE`. `SignalEventHash` returns an event's hash: the SHA-256 of `verdifax.signal.v1`, the kind, the entry's hash, the account, the sequence and the previous event's hash, joined by zero bytes.
 

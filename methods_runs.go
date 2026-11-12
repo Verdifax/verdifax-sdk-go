@@ -22,8 +22,9 @@ const (
 
 // SearchRunsParams shapes the optional filters for SearchRuns. Zero-
 // value fields are omitted from the query string. ManifestHash matches
-// a prefix. From and To are RFC 3339 times; the server ignores one it
-// cannot parse here, unlike ExportRuns, which refuses it.
+// a prefix. From and To are RFC 3339 times; one the server cannot read
+// is refused with a 400 *APIError unless Lenient is set, which asks the
+// server to leave it out instead.
 type SearchRunsParams struct {
 	ManifestHash string
 	ProgramID    Hex64
@@ -33,6 +34,9 @@ type SearchRunsParams struct {
 	To           string
 	Limit        int
 	Offset       int
+	// Lenient asks the server to ignore or replace a value it cannot
+	// read instead of refusing the request with a 400 *APIError.
+	Lenient bool
 }
 
 // SearchRuns fetches a page of the runs that match params, scoped to
@@ -55,6 +59,9 @@ func (c *Client) SearchRuns(ctx context.Context, params *SearchRunsParams) ([]Ru
 		}
 		if params.Offset > 0 {
 			q.Set("offset", strconv.Itoa(params.Offset))
+		}
+		if params.Lenient {
+			q.Set("lenient", "1")
 		}
 	}
 	path := "/runs/search"

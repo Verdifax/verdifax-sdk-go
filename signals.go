@@ -758,3 +758,53 @@ func webhookBodyIDMatches(body []byte, id string) bool {
 	}
 	return bodyID == id
 }
+
+// PendingSignOffs returns, in feed order, the runs among events whose
+// allowing policy rule requires a person's sign-off (their run.sealed entry
+// says signoff_required) and on whose record no approval is in force: the
+// last sign-off recorded on the record, if any, is not an approval. Pass the
+// account's feed from its start, or a page that includes each run's
+// sign-offs, so a sign-off recorded later is seen (round 58, B7). An entry
+// that cannot be read is an error.
+func PendingSignOffs(events []SignalEvent) ([]int64, error) {
+	var order []int64
+	required := map[int64]bool{}
+	latest := map[int64]string{}
+	for _, e := range events {
+		switch e.Data.Kind {
+		case SignalRunSealed:
+			var entry struct {
+				RunID           int64 `json:"run_id"`
+				SignOffRequired bool  `json:"signoff_required"`
+			}
+			if err := json.Unmarshal(e.Data.Entry, &entry); err != nil {
+				return nil, fmt.Errorf("verdifax: read the run.sealed entry of event %s: %w", e.ID, err)
+			}
+			if entry.SignOffRequired && !required[entry.RunID] {
+				required[entry.RunID] = true
+				order = append(order, entry.RunID)
+			}
+		case SignalSignOffRecorded:
+			var entry struct {
+				Decision string `json:"decision"`
+				Target   struct {
+					Kind  string `json:"kind"`
+					RunID int64  `json:"run_id"`
+				} `json:"target"`
+			}
+			if err := json.Unmarshal(e.Data.Entry, &entry); err != nil {
+				return nil, fmt.Errorf("verdifax: read the signoff.recorded entry of event %s: %w", e.ID, err)
+			}
+			if entry.Target.Kind == "record" {
+				latest[entry.Target.RunID] = entry.Decision
+			}
+		}
+	}
+	pending := []int64{}
+	for _, id := range order {
+		if latest[id] != "approve" {
+			pending = append(pending, id)
+		}
+	}
+	return pending, nil
+}

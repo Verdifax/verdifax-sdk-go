@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -444,7 +445,9 @@ var actorAttested = map[string]any{"actor_id": "u1"}
 func policyRun() ExecuteRequest {
 	run := parityRow
 	run.PolicyContext = &PolicyContext{ActorType: "user", MFASatisfied: true, SessionAgeSeconds: 30,
-		ObjectType: "transaction", ObjectID: "loan-1", Classification: "CONFIDENTIAL"}
+		ObjectType: "transaction", ObjectID: "loan-1", Classification: "CONFIDENTIAL",
+		DataQuality: &DataQuality{Source: "core-banking", AsOf: "2026-11-11T09:00:00Z",
+			Checks: []DataCheck{{Name: "complete", Result: "pass"}, {Name: "drift", Result: "warn"}}}}
 	run.ExpectedPolicyHash = policyPinHash
 	run.AttestedContext = actorAttested
 	return run
@@ -453,7 +456,9 @@ func policyRun() ExecuteRequest {
 func assertPolicyFields(t *testing.T, name string, sent map[string]any) {
 	t.Helper()
 	want := map[string]any{"actor_type": "user", "mfa_satisfied": true, "session_age_seconds": float64(30),
-		"object_type": "transaction", "object_id": "loan-1", "classification": "CONFIDENTIAL"}
+		"object_type": "transaction", "object_id": "loan-1", "classification": "CONFIDENTIAL",
+		"data_quality": map[string]any{"source": "core-banking", "as_of": "2026-11-11T09:00:00Z",
+			"checks": []any{map[string]any{"name": "complete", "result": "pass"}, map[string]any{"name": "drift", "result": "warn"}}}}
 	if !reflect.DeepEqual(sent["policy_context"], want) || sent["expected_policy_hash"] != policyPinHash {
 		t.Fatalf("%s sent %v", name, sent)
 	}
@@ -555,6 +560,21 @@ func TestBadPolicyFieldsAreRefusedClientSideOnEveryPath(t *testing.T) {
 			r.PolicyContext = &PolicyContext{SessionAgeSeconds: 5}
 			r.AttestedContext = nil
 		},
+		"long data source":   func(r *ExecuteRequest) { r.PolicyContext.DataQuality.Source = strings.Repeat("s", 201) },
+		"grown data source":  func(r *ExecuteRequest) { r.PolicyContext.DataQuality.Source = strings.Repeat("\xff", 67) },
+		"as_of not RFC 3339": func(r *ExecuteRequest) { r.PolicyContext.DataQuality.AsOf = "2026-11-11" },
+		"check result":       func(r *ExecuteRequest) { r.PolicyContext.DataQuality.Checks[0].Result = "ok" },
+		"blank check name":   func(r *ExecuteRequest) { r.PolicyContext.DataQuality.Checks[0].Name = " " },
+		"long check name":    func(r *ExecuteRequest) { r.PolicyContext.DataQuality.Checks[0].Name = strings.Repeat("n", 101) },
+		"repeated check": func(r *ExecuteRequest) {
+			r.PolicyContext.DataQuality.Checks[1].Name = r.PolicyContext.DataQuality.Checks[0].Name
+		},
+		"51 checks": func(r *ExecuteRequest) {
+			r.PolicyContext.DataQuality.Checks = nil
+			for i := 0; i < 51; i++ {
+				r.PolicyContext.DataQuality.Checks = append(r.PolicyContext.DataQuality.Checks, DataCheck{Name: "c" + strconv.Itoa(i), Result: "pass"})
+			}
+		},
 	}
 	for name, change := range cases {
 		c, seen := parityServer(t, Config{SigningKey: vectorSeed()}, 200, `{"ok":true}`)
@@ -617,6 +637,8 @@ func TestPolicyContextFromJSONRefusesWhatWouldBeDropped(t *testing.T) {
 		`{"mfa_satisfied":"yes"}`,
 		`{"session_age_seconds":"5"}`,
 		`{"session_age_seconds":1.5}`,
+		`{"data_quality":{"asOf":"2026-11-11T09:00:00Z"}}`,
+		`{"data_quality":{"checks":[{"name":"complete","outcome":"pass"}]}}`,
 		`[]`,
 	} {
 		var got PolicyContext

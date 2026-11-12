@@ -46,6 +46,9 @@ func (c *Client) GetStats(ctx context.Context) (*RunStats, error) {
 type ListAttestationsParams struct {
 	Limit  int
 	Offset int
+	// Lenient asks the server to ignore or replace a value it cannot
+	// read instead of refusing the request with a 400 *APIError.
+	Lenient bool
 }
 
 // AttestationList is the body of GET /attestations. Each row is a
@@ -70,6 +73,9 @@ func (c *Client) ListAttestations(ctx context.Context, params *ListAttestationsP
 		}
 		if params.Offset > 0 {
 			q.Set("offset", strconv.Itoa(params.Offset))
+		}
+		if params.Lenient {
+			q.Set("lenient", "1")
 		}
 	}
 	path := "/attestations"
@@ -163,6 +169,76 @@ func (c *Client) GetPublicReceiptByToken(ctx context.Context, token string) ([]b
 		return nil, errors.New("verdifax: token is required")
 	}
 	return c.getRawBody(ctx, "/public/runs/"+url.PathEscape(token)+"/receipt.json")
+}
+
+// PublicSignOff is one sign-off as a published record shows it.
+type PublicSignOff struct {
+	Decision   string `json:"decision"`
+	Sequence   int64  `json:"sequence"`
+	SignedAt   string `json:"signed_at"`
+	NoteSealed bool   `json:"note_sealed"`
+}
+
+// PublicJobSignOff is the sign-off of the job a published step belongs
+// to, recorded on the job's final step. Read is false when it could not
+// be read; the other fields then say nothing about it.
+type PublicJobSignOff struct {
+	JobID             string          `json:"job_id"`
+	StepID            string          `json:"step_id"`
+	Final             bool            `json:"final"`
+	Read              bool            `json:"read"`
+	FinalRunID        int64           `json:"final_run_id,omitempty"`
+	FinalRunPublicURL string          `json:"final_run_public_url,omitempty"`
+	SignOffs          []PublicSignOff `json:"signoffs"`
+}
+
+// PublicDecision is the decision in force and the record it is on: On is
+// "this_record", or "job_final_step" for a step whose job was decided on
+// its final step.
+type PublicDecision struct {
+	Decision string `json:"decision"`
+	RunID    int64  `json:"run_id"`
+	On       string `json:"on"`
+}
+
+// PublicSignOffAnswer is the sign-off a published run's audit report
+// prints. Read is false when the run's sign-offs could not be read. The
+// note, the approver key and the signatures are not served; verify them
+// with verdifax-verify --signoff from the account's sign-off records.
+type PublicSignOffAnswer struct {
+	OK              bool              `json:"ok"`
+	RunID           int64             `json:"run_id"`
+	Read            bool              `json:"read"`
+	SignOffs        []PublicSignOff   `json:"signoffs"`
+	Job             *PublicJobSignOff `json:"job,omitempty"`
+	DecisionInForce *PublicDecision   `json:"decision_in_force"`
+}
+
+// GetPublicSignOff returns the sign-off of a grandfathered public run
+// (public before share tokens) by its number. No auth required.
+func (c *Client) GetPublicSignOff(ctx context.Context, runID int64) (*PublicSignOffAnswer, error) {
+	if runID <= 0 {
+		return nil, errors.New("verdifax: runID must be > 0")
+	}
+	var out PublicSignOffAnswer
+	if err := c.doRequest(ctx, "GET", fmt.Sprintf("/runs/%d/signoff.json", runID), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetPublicSignOffByToken returns the sign-off of the published run a
+// share token points to: the decision in force, and for a step of a job
+// the job's decision on its final step. No auth required.
+func (c *Client) GetPublicSignOffByToken(ctx context.Context, token string) (*PublicSignOffAnswer, error) {
+	if token == "" {
+		return nil, errors.New("verdifax: token is required")
+	}
+	var out PublicSignOffAnswer
+	if err := c.doRequest(ctx, "GET", "/public/runs/"+url.PathEscape(token)+"/signoff.json", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (c *Client) getRawBody(ctx context.Context, path string) ([]byte, error) {

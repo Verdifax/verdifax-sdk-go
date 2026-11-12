@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -153,6 +154,28 @@ type PolicyContext struct {
 	// Classification is PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED,
 	// TOP_SECRET or TS_SCI.
 	Classification string `json:"classification,omitempty"`
+
+	// DataQuality is your declaration about the data the decision used:
+	// where it came from, the time it describes and the checks you ran on
+	// it. It is sealed with the policy inputs, and a rule's data_quality
+	// condition can require and test it. Verdifax judges none of it.
+	DataQuality *DataQuality `json:"data_quality,omitempty"`
+}
+
+// DataQuality is a request's declaration about the data its decision used.
+// Source is at most 200 bytes; AsOf is an RFC 3339 time; at most 50 checks,
+// each with a distinct name of at most 100 bytes.
+type DataQuality struct {
+	Source string      `json:"source,omitempty"`
+	AsOf   string      `json:"as_of,omitempty"`
+	Checks []DataCheck `json:"checks,omitempty"`
+}
+
+// DataCheck is one named check you ran on the data, and its result: pass,
+// fail or warn.
+type DataCheck struct {
+	Name   string `json:"name"`
+	Result string `json:"result"`
 }
 
 // UnmarshalJSON refuses an unknown field and a null value, so a misspelt
@@ -211,6 +234,54 @@ func checkPolicyContext(p *PolicyContext) error {
 	}
 	if objectIDBytes := len(wireString(p.ObjectID)); objectIDBytes > maxPolicyObjectIDBytes {
 		return fmt.Errorf("verdifax: policy_context.object_id is longer than %d bytes (got %d)", maxPolicyObjectIDBytes, objectIDBytes)
+	}
+	return checkDataQuality(p.DataQuality)
+}
+
+// asOfShape is the one form an as_of time may take, in ASCII digits:
+// date, T, time, an optional dot and 1 to 9 digits, then Z or an offset.
+var asOfShape = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-]([0-9]{2}):([0-9]{2}))$`)
+
+// validAsOf reports whether s is an as_of time the server accepts
+// (testdata/sdk-data-quality-vector.json): the form above, a real calendar time,
+// and an offset of at most 23:59.
+func validAsOf(s string) bool {
+	shape := asOfShape.FindStringSubmatch(s)
+	if shape == nil {
+		return false
+	}
+	if shape[3] != "" && (shape[3] > "23" || shape[4] > "59") {
+		return false
+	}
+	_, parseErr := time.Parse(time.RFC3339Nano, s)
+	return parseErr == nil
+}
+
+// checkDataQuality refuses a declaration the server would refuse.
+func checkDataQuality(dq *DataQuality) error {
+	if dq == nil {
+		return nil
+	}
+	if len(wireString(dq.Source)) > 200 {
+		return errors.New("verdifax: policy_context.data_quality.source is longer than 200 bytes")
+	}
+	if dq.AsOf != "" && !validAsOf(dq.AsOf) {
+		return fmt.Errorf("verdifax: policy_context.data_quality.as_of %q is not a time of the form 2026-11-11T09:00:00Z or 2026-11-11T09:00:00+05:30", dq.AsOf)
+	}
+	if len(dq.Checks) > 50 {
+		return errors.New("verdifax: policy_context.data_quality names more than 50 checks")
+	}
+	seen := map[string]bool{}
+	for _, check := range dq.Checks {
+		if strings.TrimSpace(check.Name) == "" || len(wireString(check.Name)) > 100 || seen[check.Name] {
+			return errors.New("verdifax: each policy_context.data_quality check needs a distinct name of at most 100 bytes")
+		}
+		seen[check.Name] = true
+		switch check.Result {
+		case "pass", "fail", "warn":
+		default:
+			return fmt.Errorf("verdifax: policy_context.data_quality check %q has result %q, not pass, fail or warn", check.Name, check.Result)
+		}
 	}
 	return nil
 }

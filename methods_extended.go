@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 )
@@ -115,6 +114,9 @@ func (c *Client) Attest(ctx context.Context, req *AttestRequest) (*ExecuteRespon
 type ListRunsParams struct {
 	Limit  int
 	Offset int
+	// Lenient asks the server to ignore or replace a value it cannot
+	// read instead of refusing the request with a 400 *APIError.
+	Lenient bool
 }
 
 // ListRuns fetches a page of runs scoped to the authenticated key.
@@ -136,6 +138,9 @@ func (c *Client) listRunsAt(ctx context.Context, path string, params *ListRunsPa
 		}
 		if params.Offset > 0 {
 			q.Set("offset", strconv.Itoa(params.Offset))
+		}
+		if params.Lenient {
+			q.Set("lenient", "1")
 		}
 	}
 	if encoded := q.Encode(); encoded != "" {
@@ -237,42 +242,37 @@ const (
 	FormatComprehensive PDFFormat = "comprehensive"
 )
 
+// AuditPDFOptions are the optional parts of an audit PDF request.
+type AuditPDFOptions struct {
+	// AiOutputText is the AI's exact answer. The report prints it on its
+	// first page, marked as supplied by the caller, only when its SHA-256
+	// is the hash the record seals; other text is refused with a 422
+	// *APIError. Verdifax stores only the hash.
+	AiOutputText string
+	// Fallback "comprehensive" asks for the comprehensive report when the
+	// format is not one of the four names. Without it, a format the server
+	// does not know is refused with a 400 *APIError that lists the four
+	// names, so the caller never receives a different report than the one
+	// asked for without asking for that.
+	Fallback string
+}
+
+// FallbackComprehensive is the one value AuditPDFOptions.Fallback accepts.
+const FallbackComprehensive = "comprehensive"
+
 // DownloadAuditPDF streams the audit PDF bytes for a run. Caller
 // owns the io.Writer (file, buffer, HTTP response). The PDF format
-// defaults to FormatComprehensive when format is empty.
+// defaults to FormatComprehensive when format is empty; a format the
+// server does not know is refused with a 400 *APIError.
 func (c *Client) DownloadAuditPDF(ctx context.Context, runID int64, format PDFFormat, w io.Writer) error {
-	if err := c.requireAPIKey(); err != nil {
-		return err
-	}
-	if runID <= 0 {
-		return fmt.Errorf("verdifax: runID must be > 0")
-	}
-	path := fmt.Sprintf("/runs/%d/report.pdf", runID)
-	if format != "" {
-		path += "?format=" + string(format)
-	}
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set(HeaderAPIKey, c.apiKey)
-	req.Header.Set("User-Agent", c.userAgent)
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("verdifax: HTTP transport: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return &APIError{Status: resp.StatusCode, Path: path, Message: "audit PDF download failed"}
-	}
-	_, err = io.Copy(w, resp.Body)
-	return err
+	return c.DownloadAuditPDFWithOptions(ctx, runID, format, AuditPDFOptions{}, w)
 }
 
 // reportAnswerBody is the body of a report request that carries the AI's
 // answer.
 type reportAnswerBody struct {
 	Format       PDFFormat `json:"format,omitempty"`
+	Fallback     string    `json:"fallback,omitempty"`
 	AiOutputText string    `json:"ai_output_text"`
 }
 
@@ -282,16 +282,22 @@ type reportAnswerBody struct {
 // when its SHA-256 is the hash the record seals, and refuses any other text
 // with a 422 *APIError. The text is used for this one report and kept nowhere.
 func (c *Client) DownloadAuditPDFWithAnswer(ctx context.Context, runID int64, format PDFFormat, aiOutputText string, w io.Writer) error {
+	if aiOutputText == "" {
+		return errors.New("verdifax: aiOutputText is required")
+	}
+	return c.DownloadAuditPDFWithOptions(ctx, runID, format, AuditPDFOptions{AiOutputText: aiOutputText}, w)
+}
+
+// DownloadAuditPDFWithOptions writes a run's audit PDF with the options
+// set: the AI's answer to print, and the fallback for an unknown format.
+func (c *Client) DownloadAuditPDFWithOptions(ctx context.Context, runID int64, format PDFFormat, opts AuditPDFOptions, w io.Writer) error {
 	if err := c.requireAPIKey(); err != nil {
 		return err
 	}
 	if runID <= 0 {
 		return fmt.Errorf("verdifax: runID must be > 0")
 	}
-	if aiOutputText == "" {
-		return errors.New("verdifax: aiOutputText is required")
-	}
-	return c.writeRawBody(ctx, "POST", fmt.Sprintf("/runs/%d/report.pdf", runID), reportAnswerBody{format, aiOutputText}, w)
+	return c.writeReportPDF(ctx, fmt.Sprintf("/runs/%d/report.pdf", runID), format, opts, w)
 }
 
 // DownloadPublicAuditPDF writes the audit PDF of a published record that a
@@ -299,15 +305,33 @@ func (c *Client) DownloadAuditPDFWithAnswer(ctx context.Context, runID int64, fo
 // the report prints that answer, as DownloadAuditPDFWithAnswer does, only
 // when it is the answer the record seals.
 func (c *Client) DownloadPublicAuditPDF(ctx context.Context, token string, format PDFFormat, aiOutputText string, w io.Writer) error {
+	return c.DownloadPublicAuditPDFWithOptions(ctx, token, format, AuditPDFOptions{AiOutputText: aiOutputText}, w)
+}
+
+// DownloadPublicAuditPDFWithOptions is DownloadPublicAuditPDF with every
+// option of DownloadAuditPDFWithOptions. No API key needed.
+func (c *Client) DownloadPublicAuditPDFWithOptions(ctx context.Context, token string, format PDFFormat, opts AuditPDFOptions, w io.Writer) error {
 	if token == "" {
 		return errors.New("verdifax: token is required")
 	}
-	path := "/public/runs/" + url.PathEscape(token) + "/report.pdf"
-	if aiOutputText != "" {
-		return c.writeRawBody(ctx, "POST", path, reportAnswerBody{format, aiOutputText}, w)
+	return c.writeReportPDF(ctx, "/public/runs/"+url.PathEscape(token)+"/report.pdf", format, opts, w)
+}
+
+// writeReportPDF sends a report request: a GET with the format and the
+// fallback, or, with the AI's answer, a POST carrying all three.
+func (c *Client) writeReportPDF(ctx context.Context, path string, format PDFFormat, opts AuditPDFOptions, w io.Writer) error {
+	if opts.AiOutputText != "" {
+		return c.writeRawBody(ctx, "POST", path, reportAnswerBody{format, opts.Fallback, opts.AiOutputText}, w)
 	}
+	q := url.Values{}
 	if format != "" {
-		path += "?format=" + url.QueryEscape(string(format))
+		q.Set("format", string(format))
+	}
+	if opts.Fallback != "" {
+		q.Set("fallback", opts.Fallback)
+	}
+	if len(q) > 0 {
+		path += "?" + q.Encode()
 	}
 	return c.writeRawBody(ctx, "GET", path, nil, w)
 }
