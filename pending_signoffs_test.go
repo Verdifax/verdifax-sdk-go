@@ -44,3 +44,30 @@ func TestPendingSignOffsListsRequiredRunsWithoutAnApprovalInForce(t *testing.T) 
 		t.Fatal("an unreadable entry must be an error")
 	}
 }
+
+// Round 59, N15 and N19: a job sign-off on a run's record counts, and the
+// job's decision governs the record's own, as the verifier reads it.
+func TestPendingSignOffsReadsAJobSignOffAsTheVerifierDoes(t *testing.T) {
+	signOff := func(run int64, decision, kind string) map[string]any {
+		return map[string]any{"decision": decision, "target": map[string]any{"kind": kind, "run_id": run}}
+	}
+	events := []SignalEvent{
+		feedEvent(t, 1, SignalRunSealed, map[string]any{"run_id": 20, "signoff_required": true}),
+		feedEvent(t, 2, SignalRunSealed, map[string]any{"run_id": 21, "signoff_required": true}),
+		feedEvent(t, 3, SignalRunSealed, map[string]any{"run_id": 22, "signoff_required": true}),
+		feedEvent(t, 4, SignalSignOffRecorded, signOff(20, "approve", "job")),
+		feedEvent(t, 5, SignalSignOffRecorded, signOff(21, "reject", "job")),
+		feedEvent(t, 6, SignalSignOffRecorded, signOff(21, "approve", "record")),
+		feedEvent(t, 7, SignalSignOffRecorded, signOff(22, "reject", "record")),
+		feedEvent(t, 8, SignalSignOffRecorded, signOff(22, "approve", "job")),
+	}
+	got, err := PendingSignOffs(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 20: approved by its job. 21: the job's rejection governs its own
+	// approval. 22: the job's approval governs its own rejection.
+	if fmt.Sprint(got) != "[21]" {
+		t.Fatalf("pending = %v, want [21]", got)
+	}
+}

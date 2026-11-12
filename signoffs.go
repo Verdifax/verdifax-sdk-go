@@ -424,8 +424,13 @@ func (c *Client) GetSignOffs(ctx context.Context, runID int64, opts *AccountRout
 // GetSignOffHistory returns the account's whole chain of sign-offs,
 // oldest first, as the exact JSON bytes the server sent. Save them
 // unchanged to a file and check them with verdifax-verify
-// --signoff-history FILE. Decode them into []SignOff to read them. It
-// needs the owner key.
+// --signoff-history FILE. The list holds the sign-offs, with restore gaps
+// and interrupted records in the places they close, and last the chain's
+// head statement (verdifax.signoff-head.v1), anchored on the public log,
+// whenever the chain holds a place; if the head could not be anchored it is
+// left out, and verdifax-verify then cannot call the history complete.
+// Each item names its format: decode a verdifax.signoff.v1 item into
+// SignOff. It needs the owner key.
 func (c *Client) GetSignOffHistory(ctx context.Context) ([]byte, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr

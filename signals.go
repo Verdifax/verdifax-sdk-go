@@ -761,15 +761,18 @@ func webhookBodyIDMatches(body []byte, id string) bool {
 
 // PendingSignOffs returns, in feed order, the runs among events whose
 // allowing policy rule requires a person's sign-off (their run.sealed entry
-// says signoff_required) and on whose record no approval is in force: the
-// last sign-off recorded on the record, if any, is not an approval. Pass the
+// says signoff_required) and on whose record no approval is in force. The
+// decision in force is the server's and the verifier's: the latest job
+// sign-off on the run when there is one (a job is signed off on its final
+// step), otherwise the latest sign-off on the record itself. Pass the
 // account's feed from its start, or a page that includes each run's
-// sign-offs, so a sign-off recorded later is seen (round 58, B7). An entry
-// that cannot be read is an error.
+// sign-offs, so a sign-off recorded later is seen. An entry that cannot be
+// read is an error.
 func PendingSignOffs(events []SignalEvent) ([]int64, error) {
 	var order []int64
 	required := map[int64]bool{}
-	latest := map[int64]string{}
+	// The latest decision on each run, by kind: a job's governs its record's.
+	latestJob, latestRecord := map[int64]string{}, map[int64]string{}
 	for _, e := range events {
 		switch e.Data.Kind {
 		case SignalRunSealed:
@@ -795,14 +798,21 @@ func PendingSignOffs(events []SignalEvent) ([]int64, error) {
 			if err := json.Unmarshal(e.Data.Entry, &entry); err != nil {
 				return nil, fmt.Errorf("verdifax: read the signoff.recorded entry of event %s: %w", e.ID, err)
 			}
-			if entry.Target.Kind == "record" {
-				latest[entry.Target.RunID] = entry.Decision
+			switch entry.Target.Kind {
+			case "job":
+				latestJob[entry.Target.RunID] = entry.Decision
+			case "record":
+				latestRecord[entry.Target.RunID] = entry.Decision
 			}
 		}
 	}
 	pending := []int64{}
 	for _, id := range order {
-		if latest[id] != "approve" {
+		inForce, governed := latestJob[id]
+		if !governed {
+			inForce = latestRecord[id]
+		}
+		if inForce != "approve" {
 			pending = append(pending, id)
 		}
 	}

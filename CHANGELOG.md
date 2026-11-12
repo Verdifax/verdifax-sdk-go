@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.13.0
+
+Sign-off read as the verifier reads it, and the sign-off history's head statement.
+
+- `PendingSignOffs(events)` reads the decision in force as `verdifax-verify` does: the latest job sign-off on a run governs when there is one, and otherwise the latest record sign-off. A run approved by a sign-off on its whole job is no longer listed, and one whose job was rejected is, even when the step carries its own approval.
+- `PublicDecision` gains `SignedAs`, `Sequence`, `SignedAt` and `OwnDecision`: the kind of sign-off in force, its place and time, and, when the job's decision governs, the result's own latest decision. `DecisionInForce` is nil for a step whose job's sign-offs could not be read.
+- `GetSignOffHistory` returns a list that ends with the chain's head statement, `verdifax.signoff-head.v1`, anchored on the public log. `verdifax-verify --signoff-history` reports the history complete as of that entry's time, and requires the head when a rule requires a person's sign-off, since v0.31.0. Decode only the `verdifax.signoff.v1` items into `SignOff`.
+- The server now refuses a request that gives a query value more than once with an `*APIError` (400). The SDK gives each value once.
+- The user agent is `verdifax-sdk-go/1.13.0`.
+
 ## 1.12.0
 
 Data-quality declarations, pending sign-offs, public sign-offs, and requests read strictly.

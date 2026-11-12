@@ -199,10 +199,22 @@ type PublicDecision struct {
 	Decision string `json:"decision"`
 	RunID    int64  `json:"run_id"`
 	On       string `json:"on"`
+	// SignedAs is the kind of sign-off in force: record, receipt or job.
+	SignedAs string `json:"signed_as"`
+	// Sequence and SignedAt are the sign-off in force's place in the
+	// account's chain and its signing time.
+	Sequence int64  `json:"sequence"`
+	SignedAt string `json:"signed_at"`
+	// OwnDecision is, when the job's decision governs, this result's own
+	// latest sign-off, shown under it.
+	OwnDecision string `json:"own_decision,omitempty"`
 }
 
 // PublicSignOffAnswer is the sign-off a published run's audit report
-// prints. Read is false when the run's sign-offs could not be read. The
+// prints. Read is false when the run's sign-offs could not be read.
+// DecisionInForce is nil when nothing is signed off, and for a step whose
+// job's sign-offs could not be read (Job.Read false), since the job's
+// decision would govern. The
 // note, the approver key and the signatures are not served; verify them
 // with verdifax-verify --signoff from the account's sign-off records.
 type PublicSignOffAnswer struct {

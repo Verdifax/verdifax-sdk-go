@@ -481,6 +481,8 @@ if err := os.WriteFile("signoffs.json", saved, 0o600); err != nil {
 }
 
 // The owner saves the account's whole chain for verdifax-verify --signoff-history.
+// It ends with the chain's head statement, anchored on the public log, so the
+// verifier reports the history complete as of that time (since v0.31.0).
 history, err := owner.GetSignOffHistory(ctx)
 if err != nil {
     log.Fatal(err)
@@ -540,7 +542,7 @@ if errors.As(err, &stopped) {
 
 `GetSignals` reads one page: the events after `After`, oldest first, at most `Limit` (1 to 500, 100 by default), held open up to `Wait` (a whole number of seconds from 0 to 25) when there is no new event yet. The HTTP timeout of a feed read is at least its wait plus 30 seconds, whatever the client's own timeout. `FollowSignals` reads each page from the page before's `next_after`, holds each read open for 25 seconds by default, and retries a failed read with the client's retry policy. It refuses a page that would make it skip or repeat an event. It stops when the handler returns an error or the context ends, with a `*FollowSignalsError` whose `After` is the last sequence the handler finished, so following again from there loses nothing. A handler returns `verdifax.ErrStopFollowing` to stop without an error. Both refuse a bad `After`, `Limit` or `Wait` before sending anything. Set `AsOwner` to read the feed with the owner key on `GET /account/signals`.
 
-`verdifax.PendingSignOffs(events)` returns, in feed order, the runs whose allowing policy rule requires a person's sign-off (their `run.sealed` event says `signoff_required`) and on which no approval is in force: the last sign-off on the record, if any, is not an approval. Pass the feed from its start, or pages that include each run's sign-offs. It makes no request.
+`verdifax.PendingSignOffs(events)` returns, in feed order, the runs whose allowing policy rule requires a person's sign-off (their `run.sealed` event says `signoff_required`) and on which no approval is in force, read as `verdifax-verify` reads it: the latest sign-off on the run's whole job governs when there is one, and otherwise the latest sign-off on its record; a receipt sign-off does not count. Pass the feed from its start, or pages that include each run's sign-offs. It makes no request.
 
 `SignalData.Entry` is the sealed entry as the exact JSON bytes the server sent. `json.Marshal` the events you read to a file and check it with `verdifax-verify --signals FILE`. `SignalEventHash` returns an event's hash: the SHA-256 of `verdifax.signal.v1`, the kind, the entry's hash, the account, the sequence and the previous event's hash, joined by zero bytes.
 
