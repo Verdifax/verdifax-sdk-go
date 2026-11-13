@@ -386,6 +386,13 @@ func (c *Client) prepareExecute(req *ExecuteRequest) (*preparedExecute, error) {
 // on the server refuses a run on this API key without a request
 // signature. Use RotateRequestKey to replace a registered key. Returns
 // ErrSigningKeyRequired without a SigningKey, or after ClearRequestKey.
+//
+// For a key in an account, the server seals the registration in the
+// account's signal feed as an account change, request_key.registered, and
+// seals a rotation and a clear the same way. When another change replaced
+// the request key first, the server answers a registration, a rotation or
+// a clear with HTTP 409, "the request key changed since this change was
+// signed", an *APIError with the server's message, which is not retried.
 func (c *Client) RegisterRequestKey(ctx context.Context) (*RequestKeyRegistration, error) {
 	return c.registerRequestKeyAt(ctx, requestKeyPath)
 }
@@ -412,8 +419,18 @@ func (c *Client) registerRequestKeyAt(ctx context.Context, path string) (*Reques
 // After success the client signs with newKey. After any error it keeps
 // the current key, so check the registration after a timeout, because
 // the server may have made the change. Returns ErrSigningKeyRequired
-// when the client has no SigningKey or newKey is nil.
+// when the client has no SigningKey or newKey is nil. For a key in an
+// account, the rotation is sealed in its feed as request_key.rotated,
+// carrying this approval, and a 409 *APIError means the request key
+// changed since this client signed.
 func (c *Client) RotateRequestKey(ctx context.Context, newKey SigningKey) (*RequestKeyRegistration, error) {
+	return c.rotateRequestKeyAt(ctx, requestKeyPath, newKey)
+}
+
+// rotateRequestKeyAt replaces the registered key at path,
+// /keys/request-key or /account/request-key, with newKey, and switches
+// the client to newKey only after the server accepts it.
+func (c *Client) rotateRequestKeyAt(ctx context.Context, path string, newKey SigningKey) (*RequestKeyRegistration, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
 	}
@@ -435,7 +452,7 @@ func (c *Client) RotateRequestKey(ctx context.Context, newKey SigningKey) (*Requ
 	}
 	body.Change = change
 	out := &RequestKeyRegistration{}
-	if rotateErr := c.doRequest(ctx, "POST", requestKeyPath, body, out); rotateErr != nil {
+	if rotateErr := c.doRequest(ctx, "POST", path, body, out); rotateErr != nil {
 		return nil, rotateErr
 	}
 	c.signer.Store(next)
@@ -448,8 +465,11 @@ func (c *Client) RotateRequestKey(ctx context.Context, newKey SigningKey) (*Requ
 // a key is registered. A client without one sends no body. After success
 // the client drops its SigningKey and sends unsigned requests, because
 // the server refuses a signature on an API key with no registered key.
-// After an error it keeps the key. If the key holder lost the key, an
-// admin can use AdminClearRequestKey.
+// After an error it keeps the key, as on a 409 *APIError, which means the
+// request key changed since this client signed. For a key in an account,
+// a clear with this approval is sealed in its feed as request_key.cleared,
+// decided by the key's holder. If the key holder lost the key, an admin
+// can use AdminClearRequestKey.
 func (c *Client) ClearRequestKey(ctx context.Context) error {
 	return c.clearRequestKeyAt(ctx, requestKeyPath)
 }

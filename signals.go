@@ -17,6 +17,14 @@
 // delivery is read again from the feed. The feed shows the signals
 // Verdifax recorded for the account, in order. It cannot show a signal
 // Verdifax never recorded. verdifax-verify --signals checks a saved feed.
+//
+// Since the server release that came with verdifax-verify v0.34.0, a
+// page that reaches the feed's end also carries the feed's head,
+// verdifax.feed-head.v1: Verdifax's statement, anchored on the public
+// log, of the feed's highest event and that event's hash. It is not an
+// event. verdifax-verify --signals checks a saved feed against it,
+// fails a feed that ends below it, and reports the feed complete as of the
+// head's time on the log.
 
 package verdifax
 
@@ -156,12 +164,25 @@ type SignalData struct {
 
 	// Entry is the sealed entry, a receipt, a policy change, a sign-off
 	// or a key change, as the exact JSON bytes the server sent, so a
-	// large number in it is not rounded.
+	// large number in it is not rounded. It is null on an event whose
+	// entry is a record since deleted, such as a refused, halted or failed
+	// run's receipt.
 	Entry json.RawMessage `json:"entry"`
+
+	// Deleted, on an event whose entry is a record since deleted, such as
+	// a refused, halted or failed run's receipt, is that record's
+	// tombstone, served in place of the null Entry: the event's hash still
+	// checks against the record hash the tombstone seals, so the feed
+	// verifies without the record. It is nil on every other event, and an
+	// event that is its own sealed record, such as run.sealed, keeps its
+	// own entry after the run is deleted.
+	Deleted *RunDeletion `json:"deleted,omitempty"`
 }
 
 // SignalPage is the body of GET /signals: the events after a place,
-// oldest first.
+// oldest first. json.Marshal a page to save it for verdifax-verify
+// --signals: each event and the head keep the exact bytes the server
+// sent.
 type SignalPage struct {
 	Events []SignalEvent `json:"events"`
 
@@ -171,6 +192,65 @@ type SignalPage struct {
 
 	// Newest is the account's newest sequence, 0 before its first event.
 	Newest int64 `json:"newest"`
+
+	// Head is the feed's head statement, on a page that reaches the
+	// feed's end, and nil otherwise, as on a page served while the head
+	// could not be anchored. It is not an event.
+	Head *FeedHead `json:"head,omitempty"`
+}
+
+// FeedHead is the head of an account's signal feed,
+// verdifax.feed-head.v1: Verdifax's statement, at StatedAt, of the feed's
+// highest event and that event's hash, anchored on the public log as its
+// own entry. A feed that ends below the head was cut short, and
+// verdifax-verify --signals fails it; one that ends on the head's event is
+// complete as of the head's time on the log, which the audited party
+// cannot backdate. A later event may exist after that time. It marshals
+// as the exact bytes the server sent.
+type FeedHead struct {
+	Format string `json:"format"`
+
+	// Account is account-N.
+	Account string `json:"account"`
+
+	// Sequence is the feed's highest event, and HeadHash its event hash.
+	Sequence int64 `json:"sequence"`
+	HeadHash Hex64 `json:"head_hash"`
+
+	// StatedAt is when Verdifax made the statement, RFC 3339 UTC. A
+	// statement is served again for up to five minutes while the feed has
+	// not changed.
+	StatedAt string `json:"stated_at"`
+
+	HeadStatementHash Hex64 `json:"head_statement_hash"`
+
+	// Anchor is the public-log anchor as the exact JSON bytes the server
+	// sent.
+	Anchor json.RawMessage `json:"anchor,omitempty"`
+
+	sealed json.RawMessage
+}
+
+// UnmarshalJSON decodes a feed head and keeps its exact bytes.
+func (h *FeedHead) UnmarshalJSON(data []byte) error {
+	type fields FeedHead
+	var decoded fields
+	if decodeErr := json.Unmarshal(data, &decoded); decodeErr != nil {
+		return decodeErr
+	}
+	*h = FeedHead(decoded)
+	h.sealed = keepBytes(data)
+	return nil
+}
+
+// MarshalJSON returns the exact bytes the server sent, or the fields for a
+// feed head built in code.
+func (h FeedHead) MarshalJSON() ([]byte, error) {
+	if len(h.sealed) > 0 {
+		return h.sealed, nil
+	}
+	type fields FeedHead
+	return json.Marshal(fields(h))
 }
 
 // GetSignalsOptions picks one page of the feed. It may be nil.
@@ -201,6 +281,24 @@ type FollowSignalsOptions struct {
 
 	// AsOwner reads GET /account/signals with the owner key.
 	AsOwner bool
+
+	// OnHead, when set, is called with each newer feed head FollowSignals
+	// keeps: the head of a page that reaches the feed's end, once fn has
+	// handled every event on that page. A head is kept only when its
+	// sequence is the page's next_after and its head_hash is the event hash
+	// of the last event fn finished, or, before fn finishes one in this
+	// call, AfterEventHash. A head already kept, the same statement, is not
+	// passed again; a fresh statement for the same event is. The head is
+	// never passed to fn.
+	OnHead func(*FeedHead)
+
+	// AfterEventHash is the event hash of event after, as the caller saved
+	// it with that event's sequence: 64 lowercase hex characters, or empty.
+	// A follower resuming at the feed's end has no new event to finish, so
+	// with it set FollowSignals keeps a head for event after that names
+	// this hash; empty, it keeps a head only once fn has finished an event
+	// in this call.
+	AfterEventHash string
 }
 
 // ErrStopFollowing is what a FollowSignals handler returns to stop
@@ -211,9 +309,16 @@ var ErrStopFollowing = errors.New("verdifax: stop following the signal feed")
 // could not read after the client's retries, an error from the handler,
 // or the end of ctx. After is the last sequence handled; pass it to
 // FollowSignals again to go on from there, and nothing is skipped.
+// AfterEventHash is the event hash of event After: the last event handled,
+// or the FollowSignalsOptions.AfterEventHash given when none was, and empty
+// when neither; pass it back as FollowSignalsOptions.AfterEventHash with
+// After. Head is the newest feed head FollowSignals kept, nil when no page
+// it read to the end carried one.
 type FollowSignalsError struct {
-	After int64
-	Err   error
+	After          int64
+	AfterEventHash string
+	Head           *FeedHead
+	Err            error
 }
 
 func (e *FollowSignalsError) Error() string {
@@ -350,9 +455,11 @@ func signalsBase(asOwner bool) string {
 // AsOwner the owner key reads GET /account/signals. With opts.Wait the
 // server holds the request open until an event arrives or the wait ends.
 // It refuses a bad after, limit or wait before sending anything. opts
-// may be nil.
+// may be nil. A page that reaches the feed's end carries the feed's head
+// in Head, which is not an event.
 //
-// json.Marshal the events to save them for verdifax-verify --signals.
+// json.Marshal the page, or the events, to save them for verdifax-verify
+// --signals; a saved page keeps its head.
 func (c *Client) GetSignals(ctx context.Context, opts *GetSignalsOptions) (*SignalPage, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
@@ -400,6 +507,13 @@ func checkSignalPage(after int64, page *SignalPage) error {
 // seconds by default, and reads again. A failed read is retried with the
 // client's retry policy.
 //
+// A page's feed head is not an event and never reaches fn. FollowSignals
+// keeps the newest head whose sequence and head_hash name the last event
+// fn finished, or event after by opts.AfterEventHash before fn finishes
+// one, passes each newer one to opts.OnHead, and returns the one kept in a
+// *FollowSignalsError. It refuses an AfterEventHash that is not 64
+// lowercase hex characters before sending anything.
+//
 // It stops when fn returns an error or ctx ends. When fn returns
 // ErrStopFollowing, FollowSignals returns nil. Otherwise it returns a
 // *FollowSignalsError whose After is the last sequence fn handled
@@ -424,28 +538,56 @@ func (c *Client) FollowSignals(ctx context.Context, after int64, opts *FollowSig
 	if _, queryErr := signalsQuery(read); queryErr != nil {
 		return queryErr
 	}
+	if opts.AfterEventHash != "" {
+		if hashErr := ValidateHex64(opts.AfterEventHash, "AfterEventHash"); hashErr != nil {
+			return hashErr
+		}
+	}
+	var head *FeedHead
+	// lastHash is the event hash of the last event fn finished, or the
+	// caller's AfterEventHash before the first.
+	lastHash := opts.AfterEventHash
 	for {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return &FollowSignalsError{After: read.After, Err: ctxErr}
+			return &FollowSignalsError{After: read.After, AfterEventHash: lastHash, Head: head, Err: ctxErr}
 		}
 		page, pageErr := c.GetSignals(ctx, read)
 		if pageErr != nil {
-			return &FollowSignalsError{After: read.After, Err: pageErr}
+			return &FollowSignalsError{After: read.After, AfterEventHash: lastHash, Head: head, Err: pageErr}
 		}
 		if orderErr := checkSignalPage(read.After, page); orderErr != nil {
-			return &FollowSignalsError{After: read.After, Err: orderErr}
+			return &FollowSignalsError{After: read.After, AfterEventHash: lastHash, Head: head, Err: orderErr}
 		}
 		for _, event := range page.Events {
 			if handlerErr := fn(event); handlerErr != nil {
 				if errors.Is(handlerErr, ErrStopFollowing) {
 					return nil
 				}
-				return &FollowSignalsError{After: read.After, Err: handlerErr}
+				return &FollowSignalsError{After: read.After, AfterEventHash: lastHash, Head: head, Err: handlerErr}
 			}
 			read.After = event.Data.Sequence
+			lastHash = event.Data.EventHash
 		}
 		read.After = page.NextAfter
+		if newerFeedHead(head, page.Head, page.NextAfter, lastHash) {
+			head = page.Head
+			if opts.OnHead != nil {
+				opts.OnHead(head)
+			}
+		}
 	}
+}
+
+// newerFeedHead reports whether next, a page's head, is one to keep over
+// kept: it states the feed through handled, the last event handled, names
+// that event by its hash, handledHash, and is another statement than kept,
+// at kept's event or later. With no event handled yet and no
+// AfterEventHash, handledHash is empty and no head is kept.
+func newerFeedHead(kept, next *FeedHead, handled int64, handledHash string) bool {
+	if next == nil || next.Sequence != handled || handledHash == "" || next.HeadHash != handledHash {
+		return false
+	}
+	return kept == nil || (next.Sequence >= kept.Sequence && next.HeadStatementHash != kept.HeadStatementHash)
 }
 
 // CreateFeedKey creates a feed key in the owner key's account, named
@@ -783,7 +925,8 @@ func webhookBodyIDMatches(body []byte, id string) bool {
 // sign-offs, so a sign-off recorded later is seen. A run whose deletion, a
 // run.deleted event, is anywhere in events is left out: a deleted record
 // has nothing left to sign off. An entry that cannot be read, or a
-// run.deleted entry that names no run, is an error.
+// run.sealed or run.deleted entry that names no run, a null entry
+// included, is an error.
 func PendingSignOffs(events []SignalEvent) ([]int64, error) {
 	var order []int64
 	required, deleted := map[int64]bool{}, map[int64]bool{}
@@ -798,6 +941,12 @@ func PendingSignOffs(events []SignalEvent) ([]int64, error) {
 			}
 			if err := json.Unmarshal(e.Data.Entry, &entry); err != nil {
 				return nil, fmt.Errorf("verdifax: read the run.sealed entry of event %s: %w", e.ID, err)
+			}
+			// The server serves every run.sealed event with its own entry,
+			// even after the run is deleted, so one that names no run, a
+			// null entry included, is refused, never skipped.
+			if entry.RunID <= 0 {
+				return nil, fmt.Errorf("verdifax: the run.sealed entry of event %s names no run", e.ID)
 			}
 			if entry.SignOffRequired && !required[entry.RunID] {
 				required[entry.RunID] = true

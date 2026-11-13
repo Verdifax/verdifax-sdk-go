@@ -23,7 +23,12 @@ import (
 // signature, so the server cannot make an owner's change of its own. While
 // the owner blocks it, Verdifax can neither replace the owner key nor
 // delete a record, and verdifax-verify fails a feed that shows either
-// after the block.
+// after the block. Since the server release that came with
+// verdifax-verify v0.34.0, each registration, rotation and holder's clear
+// of a customer key's request key is an account change too, sealed in the
+// same transaction as the change itself: a rotation and a holder's clear
+// carry the previous request key's approval, so the feed holds each key's
+// request-key chain from its registration.
 
 const (
 	ownerChangeForm    = "verdifax.owner-change-signature.v1"
@@ -56,6 +61,19 @@ const (
 	DecidedByVerdifax = "verdifax_admin"
 )
 
+// The account-change actions for a key's request key, as
+// AccountChange.Action names them. A registration and a rotation are
+// decided by DecidedByOwner, the key's holder, and their Value is the new
+// public key, base64. A rotation carries the previous key's approval in
+// RequestKeyApproval. A clear has an empty Value: decided by the key's
+// holder it carries that approval over the empty key, and decided by
+// DecidedByVerdifax, for a holder who lost the key, it carries none.
+const (
+	AccountChangeRequestKeyRegistered = "request_key.registered"
+	AccountChangeRequestKeyRotated    = "request_key.rotated"
+	AccountChangeRequestKeyCleared    = "request_key.cleared"
+)
+
 // settingChanges maps each setting to the change its signature names.
 var settingChanges = map[string]string{
 	AccountSettingOwnerReplacement: "setting.owner_replacement",
@@ -82,14 +100,38 @@ type OwnerSignature struct {
 	Nonce string `json:"nonce"`
 }
 
-// AccountChange is one change to an account's settings or to one of its
-// keys' terms, verdifax.account-change.v1, the entry of an account.changed
-// event. It marshals as the exact bytes the server sent.
+// RequestKeyApproval is a key's previous request key approving the change
+// to its next one, on a request_key.rotated change and on a
+// request_key.cleared change its holder decided. Signature is over the
+// same bytes RotateRequestKey and ClearRequestKey sign:
+// verdifax.request-key-change.v1, the change's Value (the new public key,
+// or empty for a clear), SignedAt and Nonce, joined by single zero bytes.
+// Verdifax never holds that key, so the approval shows the key's holder
+// made the change.
+type RequestKeyApproval struct {
+	// PublicKey is the previous request key, base64.
+	PublicKey string `json:"public_key"`
+
+	// Signature is the base64 Ed25519 signature by PublicKey.
+	Signature string `json:"signature"`
+
+	// SignedAt is RFC 3339 UTC with whole seconds.
+	SignedAt string `json:"signed_at"`
+
+	// Nonce is 16 random bytes as 32 lowercase hex characters.
+	Nonce string `json:"nonce"`
+}
+
+// AccountChange is one change to an account's settings, to one of its
+// keys' terms, or to a key's request key, verdifax.account-change.v1, the
+// entry of an account.changed event. It marshals as the exact bytes the
+// server sent.
 type AccountChange struct {
 	Format string `json:"format"`
 
-	// Action is the change, such as setting.verdifax_deletion or
-	// owner_key.replacement_requested.
+	// Action is the change, such as setting.verdifax_deletion,
+	// owner_key.replacement_requested or one of the AccountChangeRequestKey
+	// actions.
 	Action string `json:"action"`
 
 	// DecidedBy is DecidedByOwner or DecidedByVerdifax.
@@ -99,13 +141,21 @@ type AccountChange struct {
 	KeyID int64 `json:"key_id"`
 
 	// Value is the new value: allowed or blocked for a setting, a claim
-	// expiry for an owner-key replacement, a tier, and so on.
+	// expiry for an owner-key replacement, a tier, the new public key,
+	// base64, for a registered or rotated request key, empty for a cleared
+	// one, and so on.
 	Value     string `json:"value"`
 	ChangedAt string `json:"changed_at"`
 
-	// OwnerSignature is the owner's request-key signature on a change the
-	// owner decided, and nil on Verdifax's.
+	// OwnerSignature is the owner's request-key signature on a setting the
+	// owner decided, and nil on Verdifax's change and on a key holder's
+	// change to its own request key.
 	OwnerSignature *OwnerSignature `json:"owner_signature,omitempty"`
+
+	// RequestKeyApproval is the previous request key's approval on a
+	// rotated request key, and on one its holder cleared, and nil on every
+	// other change.
+	RequestKeyApproval *RequestKeyApproval `json:"request_key_approval,omitempty"`
 
 	Signal            SignalLink `json:"signal"`
 	AccountChangeHash Hex64      `json:"account_change_hash"`
@@ -157,9 +207,21 @@ type RunDeletion struct {
 	RecordHash Hex64 `json:"record_hash"`
 
 	// JobID and StepID name the record's place in a job, when it had one.
-	JobID     string `json:"job_id,omitempty"`
-	StepID    string `json:"step_id,omitempty"`
-	ChangedAt string `json:"changed_at"`
+	JobID  string `json:"job_id,omitempty"`
+	StepID string `json:"step_id,omitempty"`
+
+	// JobLinks are a deleted job step's own job links, on a step deleted
+	// since the server release that came with verdifax-verify v0.34.0,
+	// present even when empty, so the job stays checkable through the
+	// tombstone. A tombstone written before, and one of a record outside a
+	// job, carries none.
+	JobLinks *DeletedJobLinks `json:"job_links,omitempty"`
+
+	// LogEntries are the public-log entries of the deleted record, as
+	// decimal entry numbers in ascending order, so the log still accounts
+	// for every entry once the record is gone.
+	LogEntries []string `json:"log_entries,omitempty"`
+	ChangedAt  string   `json:"changed_at"`
 
 	// OwnerSignature is the owner's request-key signature on a deletion
 	// the owner decided, and nil on Verdifax's.
@@ -173,6 +235,22 @@ type RunDeletion struct {
 	Anchor json.RawMessage `json:"anchor,omitempty"`
 
 	sealed json.RawMessage
+}
+
+// DeletedJobLinks are a deleted job step's own links, as its job link held
+// them: the records it followed, its links to other accounts' records, and
+// whether it was the job's final step.
+type DeletedJobLinks struct {
+	// PreviousRecordHashes are the record hashes of the steps it
+	// followed, sorted and distinct, at most 64.
+	PreviousRecordHashes []string `json:"previous_record_hashes,omitempty"`
+
+	// ExternalPrevious are its links to other accounts' records, sorted
+	// and distinct, at most 16.
+	ExternalPrevious []string `json:"external_previous,omitempty"`
+
+	// Final is true when the step closed its job.
+	Final bool `json:"final,omitempty"`
 }
 
 // UnmarshalJSON decodes a run deletion and keeps its exact bytes.

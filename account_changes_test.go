@@ -709,3 +709,289 @@ func TestSetAccountSettingTellsNullFromAMissingChange(t *testing.T) {
 		t.Fatalf("missing: out = %+v, err = %v", out, err)
 	}
 }
+
+// The server's round 61 fixtures (internal/artifacts/account_change_test.go):
+// a key's request keys before and after a rotation, and the approval's time
+// and nonce.
+var (
+	holderRequestSeed = SigningKey(strings.Repeat("h", ed25519.SeedSize))
+	nextRequestSeed   = SigningKey(strings.Repeat("n", ed25519.SeedSize))
+)
+
+const (
+	requestKeyApprovedAt = "2026-11-12T18:00:00Z"
+	requestKeyNonce      = "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+)
+
+// requestKeyPublic is a seed's public key, base64.
+func requestKeyPublic(t *testing.T, seed SigningKey) string {
+	t.Helper()
+	signer, err := newRequestSigner(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signer.publicKeyBase64()
+}
+
+// requestKeyApproval is the approval the server seals: by is the previous
+// key, signing the change to newKey exactly as RotateRequestKey and
+// ClearRequestKey sign it.
+func requestKeyApproval(t *testing.T, by SigningKey, newKey string) (string, *RequestKeyChange) {
+	t.Helper()
+	signer, err := newRequestSigner(by)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signer.publicKeyBase64(), signer.approveChangeAt(newKey, requestKeyApprovedAt, requestKeyNonce)
+}
+
+// requestKeyChangeJSON is a request-key account change as the server seals
+// it, in its field order, with an approval when by is set.
+func requestKeyChangeJSON(t *testing.T, action, decidedBy, value string, by SigningKey) string {
+	t.Helper()
+	approval := ""
+	if by != nil {
+		public, change := requestKeyApproval(t, by, value)
+		approval = `"request_key_approval":{"public_key":"` + public + `","signature":"` + change.Signature +
+			`","signed_at":"` + change.SignedAt + `","nonce":"` + change.Nonce + `"},`
+	}
+	return `{"format":"verdifax.account-change.v1","action":"` + action + `","decided_by":"` + decidedBy + `","key_id":12,` +
+		`"value":"` + value + `","changed_at":"2026-11-12T18:00:01.5Z",` + approval +
+		`"signal":{"signal_account":"account-7","signal_sequence":14,"signal_previous_hash":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"},` +
+		`"account_change_hash":"efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",` +
+		`"anchor":{"log_index":12345678901234567890}}`
+}
+
+// Round 61, N22: the server seals each registration, rotation and clear of a
+// key's request key as an account change. Each shape is read with every
+// field, read from an account.changed event of a feed page, and saved as the
+// exact bytes sent. A rotation's and a holder's clear's approval is the
+// previous key's signature over the bytes the SDK signs when it rotates or
+// clears, and verifies over the change's value; a registration and
+// Verdifax's clear carry none.
+func TestRequestKeyAccountChangesAreReadWithEveryField(t *testing.T) {
+	if AccountChangeRequestKeyRegistered != "request_key.registered" || AccountChangeRequestKeyRotated != "request_key.rotated" ||
+		AccountChangeRequestKeyCleared != "request_key.cleared" {
+		t.Fatal("the actions are not the server's")
+	}
+	holder, next := requestKeyPublic(t, holderRequestSeed), requestKeyPublic(t, nextRequestSeed)
+	for _, tc := range []struct {
+		name, action, decidedBy, value string
+		by                             SigningKey
+	}{
+		{"a registration", AccountChangeRequestKeyRegistered, DecidedByOwner, holder, nil},
+		{"a rotation", AccountChangeRequestKeyRotated, DecidedByOwner, next, holderRequestSeed},
+		{"the holder's clear", AccountChangeRequestKeyCleared, DecidedByOwner, "", holderRequestSeed},
+		{"Verdifax's clear", AccountChangeRequestKeyCleared, DecidedByVerdifax, "", nil},
+	} {
+		sealed := requestKeyChangeJSON(t, tc.action, tc.decidedBy, tc.value, tc.by)
+		event := strings.Replace(strings.Replace(signalEventJSON(14), `"kind":"run.refused"`, `"kind":"account.changed"`, 1),
+			`"entry":{"kind":"deny_receipt","anchor":{"log_index":1780000000123456789}}`, `"entry":`+sealed, 1)
+		c, _ := parityServer(t, Config{}, 200, `{"events":[`+event+`],"next_after":14,"newest":14}`)
+		page, getErr := c.GetSignals(context.Background(), &GetSignalsOptions{After: 13, AsOwner: true})
+		if getErr != nil {
+			t.Fatalf("%s: %v", tc.name, getErr)
+		}
+		if len(page.Events) != 1 || page.Events[0].Data.Kind != SignalAccountChanged {
+			t.Fatalf("%s: events = %+v", tc.name, page.Events)
+		}
+		var got AccountChange
+		if decodeErr := json.Unmarshal(page.Events[0].Data.Entry, &got); decodeErr != nil {
+			t.Fatalf("%s: %v", tc.name, decodeErr)
+		}
+		if got.Format != "verdifax.account-change.v1" || got.Action != tc.action || got.DecidedBy != tc.decidedBy || got.KeyID != 12 ||
+			got.Value != tc.value || got.ChangedAt != "2026-11-12T18:00:01.5Z" || got.OwnerSignature != nil ||
+			got.Signal.Account != "account-7" || got.Signal.Sequence != 14 ||
+			got.Signal.PreviousSignalHash != "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd" ||
+			got.AccountChangeHash != "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef" ||
+			string(got.Anchor) != `{"log_index":12345678901234567890}` {
+			t.Fatalf("%s: read %+v", tc.name, got)
+		}
+		if saved, encodeErr := json.Marshal(got); encodeErr != nil || string(saved) != sealed {
+			t.Fatalf("%s: saved %s, %v\nwant  %s", tc.name, saved, encodeErr, sealed)
+		}
+		if tc.by == nil {
+			if got.RequestKeyApproval != nil {
+				t.Fatalf("%s: read an approval it does not carry", tc.name)
+			}
+			continue
+		}
+		a := got.RequestKeyApproval
+		if a == nil || a.PublicKey != holder || a.SignedAt != requestKeyApprovedAt || a.Nonce != requestKeyNonce {
+			t.Fatalf("%s: approval = %+v", tc.name, a)
+		}
+		_, sent := requestKeyApproval(t, holderRequestSeed, tc.value)
+		public, _ := base64.StdEncoding.DecodeString(a.PublicKey)
+		signature, _ := base64.StdEncoding.DecodeString(a.Signature)
+		if a.Signature != sent.Signature || !ed25519.Verify(public, requestKeyChangePreimage(got.Value, a.SignedAt, a.Nonce), signature) {
+			t.Fatalf("%s: the approval is not the previous key's signature over the change", tc.name)
+		}
+		if ed25519.Verify(public, requestKeyChangePreimage(holder+"x", a.SignedAt, a.Nonce), signature) {
+			t.Fatalf("%s: the approval verifies over another key", tc.name)
+		}
+	}
+}
+
+// requestKeyMoved is the server's answer to a request-key change approved
+// against a key another change replaced first.
+const requestKeyMoved = "the request key changed since this change was signed; read the key again and sign the change with it"
+
+// Round 61, N22: every request-key call on both routes surfaces the server's
+// 409 as an *APIError with the server's message, sends it once, and keeps
+// the client's signing key.
+func TestRequestKeyCallsSurfaceTheKeyChangedConflict(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, method, path string
+		call               func(*Client) error
+	}{
+		{"RegisterRequestKey", "POST", "/keys/request-key", func(c *Client) error { _, err := c.RegisterRequestKey(ctx); return err }},
+		{"RotateRequestKey", "POST", "/keys/request-key", func(c *Client) error { _, err := c.RotateRequestKey(ctx, nextRequestSeed); return err }},
+		{"ClearRequestKey", "DELETE", "/keys/request-key", func(c *Client) error { return c.ClearRequestKey(ctx) }},
+		{"RegisterAccountRequestKey", "POST", "/account/request-key", func(c *Client) error { _, err := c.RegisterAccountRequestKey(ctx); return err }},
+		{"RotateAccountRequestKey", "POST", "/account/request-key", func(c *Client) error {
+			_, err := c.RotateAccountRequestKey(ctx, nextRequestSeed)
+			return err
+		}},
+		{"ClearAccountRequestKey", "DELETE", "/account/request-key", func(c *Client) error { return c.ClearAccountRequestKey(ctx) }},
+	} {
+		c, seen := parityServer(t, Config{SigningKey: holderRequestSeed}, http.StatusConflict, `{"ok":false,"error":"`+requestKeyMoved+`"}`)
+		err := tc.call(c)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict || apiErr.Message != requestKeyMoved || apiErr.Path != tc.path {
+			t.Fatalf("%s: err = %v", tc.name, err)
+		}
+		if len(*seen) != 1 || (*seen)[0].Method != tc.method || (*seen)[0].Path != tc.path {
+			t.Fatalf("%s: sent %+v", tc.name, *seen)
+		}
+		if signer := c.signer.Load(); signer == nil || signer.publicKeyBase64() != requestKeyPublic(t, holderRequestSeed) {
+			t.Fatalf("%s: the client no longer holds its signing key after the conflict", tc.name)
+		}
+	}
+}
+
+// deletedTombstoneJSON is a run deletion as the server seals it, in its
+// field order, naming the deleted record's public-log entries, one too
+// large for a float64 to hold exactly, and with a field this SDK does not
+// name, which a saved tombstone must keep.
+const deletedTombstoneJSON = `{"format":"verdifax.run-deletion.v1","decided_by":"verdifax_admin","run_id":42,"record_hash":"` + deleteRecordHash + `",` +
+	`"job_id":"j","step_id":"s","log_entries":["17","18446744073709551615"],"changed_at":"2026-11-12T18:00:01Z",` +
+	`"signal":{"signal_account":"account-7","signal_sequence":15,"signal_previous_hash":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"},` +
+	`"deletion_hash":"1212121212121212121212121212121212121212121212121212121212121212","anchor":{"log_index":12345678901234567890},"later_field":"kept"}`
+
+// A tombstone names the deleted record's public-log entries in
+// log_entries, read in order, and saves as the exact bytes sent; a
+// tombstone built in code without them saves without the field.
+func TestRunDeletionReadsTheDeletedRecordsLogEntries(t *testing.T) {
+	var d RunDeletion
+	if decodeErr := json.Unmarshal([]byte(deletedTombstoneJSON), &d); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if strings.Join(d.LogEntries, ",") != "17,18446744073709551615" || d.RunID != 42 || d.RecordHash != deleteRecordHash ||
+		d.JobID != "j" || d.StepID != "s" || d.DecidedBy != DecidedByVerdifax || d.OwnerSignature != nil ||
+		d.ChangedAt != "2026-11-12T18:00:01Z" || d.Signal.Sequence != 15 ||
+		d.DeletionHash != "1212121212121212121212121212121212121212121212121212121212121212" {
+		t.Fatalf("read %+v", d)
+	}
+	if saved, encodeErr := json.Marshal(d); encodeErr != nil || string(saved) != deletedTombstoneJSON {
+		t.Fatalf("saved %s, %v", saved, encodeErr)
+	}
+	built, buildErr := json.Marshal(RunDeletion{Format: "verdifax.run-deletion.v1", RunID: 1})
+	if buildErr != nil || strings.Contains(string(built), "log_entries") {
+		t.Fatalf("a tombstone built in code marshals as %s, %v", built, buildErr)
+	}
+}
+
+// An event whose record was deleted is served with a null entry and the
+// record's tombstone in data.deleted. GetSignals reads the tombstone with
+// every field, keeps the event's exact bytes, leaves Deleted nil on an
+// ordinary event, and PendingSignOffs reads such a feed without error.
+func TestSignalDataReadsTheTombstoneOfADeletedRecord(t *testing.T) {
+	deleted := strings.Replace(signalEventJSON(15), `"entry":{"kind":"deny_receipt","anchor":{"log_index":1780000000123456789}}`,
+		`"entry":null,"deleted":`+deletedTombstoneJSON, 1)
+	c, _ := parityServer(t, Config{}, 200, `{"events":[`+signalEventJSON(14)+`,`+deleted+`],"next_after":15,"newest":15}`)
+	page, getErr := c.GetSignals(context.Background(), &GetSignalsOptions{After: 13})
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	if len(page.Events) != 2 || page.Events[0].Data.Deleted != nil {
+		t.Fatalf("events = %+v", page.Events)
+	}
+	event := page.Events[1]
+	d := event.Data.Deleted
+	if d == nil || string(event.Data.Entry) != "null" {
+		t.Fatalf("the deleted record's event read as entry %s, deleted %+v", event.Data.Entry, d)
+	}
+	if d.Format != "verdifax.run-deletion.v1" || d.DecidedBy != DecidedByVerdifax || d.RunID != 42 || d.RecordHash != deleteRecordHash ||
+		strings.Join(d.LogEntries, ",") != "17,18446744073709551615" || d.Signal.Account != "account-7" ||
+		string(d.Anchor) != `{"log_index":12345678901234567890}` {
+		t.Fatalf("tombstone = %+v", d)
+	}
+	if saved, encodeErr := json.Marshal(d); encodeErr != nil || string(saved) != deletedTombstoneJSON {
+		t.Fatalf("the tombstone saved as %s, %v", saved, encodeErr)
+	}
+	if saved, encodeErr := json.Marshal(event); encodeErr != nil || string(saved) != deleted {
+		t.Fatalf("the event saved as %s, %v", saved, encodeErr)
+	}
+	if pending, pendingErr := PendingSignOffs(page.Events); pendingErr != nil || len(pending) != 0 {
+		t.Fatalf("pending = %v, %v", pending, pendingErr)
+	}
+}
+
+// jobStepTombstone is a deleted job step's tombstone as the server seals it,
+// with job_links between step_id and log_entries, or without them when
+// links is empty.
+func jobStepTombstone(links string) string {
+	if links != "" {
+		links = `"job_links":` + links + `,`
+	}
+	return `{"format":"verdifax.run-deletion.v1","decided_by":"owner","run_id":43,"record_hash":"` + deleteRecordHash + `",` +
+		`"job_id":"j","step_id":"s2",` + links + `"log_entries":["19"],"changed_at":"2026-11-12T18:00:02Z",` +
+		`"signal":{"signal_account":"account-7","signal_sequence":16,"signal_previous_hash":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"},` +
+		`"deletion_hash":"3434343434343434343434343434343434343434343434343434343434343434","later_field":"kept"}`
+}
+
+// A deleted job step's tombstone carries its own job links: the steps it
+// followed, its links to other accounts' records and whether it closed the
+// job. They are read with every field, an empty job_links reads as links
+// with nothing in them, a tombstone without job_links reads as none, and
+// each saves as the exact bytes sent.
+func TestRunDeletionReadsADeletedStepsJobLinks(t *testing.T) {
+	previous := []string{strings.Repeat("1", 64), strings.Repeat("2", 64)}
+	external := []string{strings.Repeat("3", 64)}
+	full := jobStepTombstone(`{"previous_record_hashes":["` + strings.Join(previous, `","`) + `"],"external_previous":["` + external[0] + `"],"final":true}`)
+	for _, tc := range []struct {
+		name, sealed string
+		want         *DeletedJobLinks
+	}{
+		{"a final step with links", full, &DeletedJobLinks{PreviousRecordHashes: previous, ExternalPrevious: external, Final: true}},
+		{"a first step, links empty", jobStepTombstone(`{}`), &DeletedJobLinks{}},
+		{"a tombstone written before job links", jobStepTombstone(""), nil},
+	} {
+		var d RunDeletion
+		if decodeErr := json.Unmarshal([]byte(tc.sealed), &d); decodeErr != nil {
+			t.Fatalf("%s: %v", tc.name, decodeErr)
+		}
+		if d.RunID != 43 || d.JobID != "j" || d.StepID != "s2" || strings.Join(d.LogEntries, ",") != "19" ||
+			d.DeletionHash != "3434343434343434343434343434343434343434343434343434343434343434" {
+			t.Fatalf("%s: read %+v", tc.name, d)
+		}
+		if (d.JobLinks == nil) != (tc.want == nil) || (d.JobLinks != nil && (strings.Join(d.JobLinks.PreviousRecordHashes, ",") != strings.Join(tc.want.PreviousRecordHashes, ",") ||
+			strings.Join(d.JobLinks.ExternalPrevious, ",") != strings.Join(tc.want.ExternalPrevious, ",") || d.JobLinks.Final != tc.want.Final)) {
+			t.Fatalf("%s: job links %+v, want %+v", tc.name, d.JobLinks, tc.want)
+		}
+		if saved, encodeErr := json.Marshal(d); encodeErr != nil || string(saved) != tc.sealed {
+			t.Fatalf("%s: saved %s, %v", tc.name, saved, encodeErr)
+		}
+	}
+	built, buildErr := json.Marshal(RunDeletion{Format: "verdifax.run-deletion.v1", RunID: 1, JobID: "j", StepID: "s",
+		JobLinks: &DeletedJobLinks{PreviousRecordHashes: previous}})
+	if buildErr != nil || !strings.Contains(string(built), `"step_id":"s","job_links":{"previous_record_hashes":["`+previous[0]) ||
+		strings.Contains(string(built), "external_previous") || strings.Contains(string(built), "final") {
+		t.Fatalf("a tombstone built in code marshals as %s, %v", built, buildErr)
+	}
+	plain, plainErr := json.Marshal(RunDeletion{Format: "verdifax.run-deletion.v1", RunID: 1})
+	if plainErr != nil || strings.Contains(string(plain), "job_links") {
+		t.Fatalf("a tombstone without links marshals as %s, %v", plain, plainErr)
+	}
+}

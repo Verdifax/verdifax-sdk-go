@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -636,5 +637,89 @@ func TestRunsAndExportRowsCarryTheRequestingKey(t *testing.T) {
 		if csvErr != nil || got.CSV != csvText {
 			t.Fatalf("account %v: csv = %+v, %v", account, got, csvErr)
 		}
+	}
+}
+
+// RotateAccountRequestKey is RotateRequestKey on the owner key's route,
+// POST /account/request-key: the new key's proof and the current key's
+// approval, then the client signs with the new key.
+func TestRotateAccountRequestKeySendsProofAndChangeThenSignsWithTheNewKey(t *testing.T) {
+	c, rec := signingServer(t, vectorSeed())
+	newPublic, newPrivate, keyErr := GenerateRequestKey()
+	if keyErr != nil {
+		t.Fatal(keyErr)
+	}
+	newBase64 := base64.StdEncoding.EncodeToString(newPublic)
+	if _, rotateErr := c.RotateAccountRequestKey(context.Background(), newPrivate); rotateErr != nil {
+		t.Fatal(rotateErr)
+	}
+	b := rec.last(t)
+	if b.Method != "POST" || b.Path != "/account/request-key" || b.PublicKey != newBase64 {
+		t.Fatalf("rotate sent %+v", b)
+	}
+	if got := strings.Join(jsonKeys(t, []byte(b.Raw)), ","); got != "change,proof,public_key" {
+		t.Fatalf("body keys = %s", got)
+	}
+	proof, proofErr := base64.StdEncoding.DecodeString(b.Proof)
+	if proofErr != nil || !ed25519.Verify(newPublic, []byte("verdifax.request-key.v1\x00"+newBase64), proof) {
+		t.Fatalf("the proof is not by the new key: %v", proofErr)
+	}
+	if !changeVerifies(t, b.Change, vectorPublic(t), newBase64) {
+		t.Fatal("the change is not by the current key")
+	}
+	if _, executeErr := c.Execute(context.Background(), vectorRequest()); executeErr != nil {
+		t.Fatal(executeErr)
+	}
+	verifyWire(t, rec.last(t), newPublic)
+}
+
+// A refused rotation, including the 409 for a request key that changed
+// since the client signed, is returned with the server's message, sent
+// once, and leaves the client signing with its current key.
+func TestRotateAccountRequestKeyKeepsTheCurrentKeyOnARefusal(t *testing.T) {
+	for status, message := range map[int]string{
+		http.StatusForbidden: "the current request key must approve this change",
+		http.StatusConflict:  requestKeyMoved,
+	} {
+		c, seen := parityServer(t, Config{SigningKey: vectorSeed()}, status, `{"error":"`+message+`"}`)
+		_, newPrivate, keyErr := GenerateRequestKey()
+		if keyErr != nil {
+			t.Fatal(keyErr)
+		}
+		_, rotateErr := c.RotateAccountRequestKey(context.Background(), newPrivate)
+		var apiErr *APIError
+		if !errors.As(rotateErr, &apiErr) || apiErr.Status != status || apiErr.Message != message || apiErr.Path != "/account/request-key" {
+			t.Fatalf("HTTP %d: err = %v", status, rotateErr)
+		}
+		if len(*seen) != 1 || (*seen)[0].Method != "POST" || (*seen)[0].Path != "/account/request-key" {
+			t.Fatalf("HTTP %d: sent %+v", status, *seen)
+		}
+		if got := c.signer.Load().registrationBody().PublicKey; got != vectorPublicKey {
+			t.Fatalf("HTTP %d: client now holds %s", status, got)
+		}
+	}
+}
+
+func TestRotateAccountRequestKeyRefusesBadInputWithoutARequest(t *testing.T) {
+	signed, seen := parityServer(t, Config{SigningKey: vectorSeed()}, 200, `{"ok":true}`)
+	if _, nilErr := signed.RotateAccountRequestKey(context.Background(), nil); !errors.Is(nilErr, ErrSigningKeyRequired) {
+		t.Fatalf("err = %v", nilErr)
+	}
+	if _, shortErr := signed.RotateAccountRequestKey(context.Background(), SigningKey{1}); shortErr == nil {
+		t.Fatal("short key accepted")
+	}
+	unsigned, unsignedSeen := parityServer(t, Config{}, 200, `{"ok":true}`)
+	if _, noKeyErr := unsigned.RotateAccountRequestKey(context.Background(), vectorSeed()); !errors.Is(noKeyErr, ErrSigningKeyRequired) {
+		t.Fatalf("err = %v", noKeyErr)
+	}
+	noAPIKey, clientErr := NewClient(Config{BaseURL: "http://127.0.0.1:9", SigningKey: vectorSeed()})
+	if clientErr != nil {
+		t.Fatal(clientErr)
+	}
+	if _, apiKeyErr := noAPIKey.RotateAccountRequestKey(context.Background(), vectorSeed()); !errors.Is(apiKeyErr, ErrAPIKeyRequired) {
+		t.Fatalf("err = %v", apiKeyErr)
+	}
+	if len(*seen) != 0 || len(*unsignedSeen) != 0 {
+		t.Fatalf("%d and %d requests were sent", len(*seen), len(*unsignedSeen))
 	}
 }

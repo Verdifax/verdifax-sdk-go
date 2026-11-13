@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -555,6 +556,10 @@ func TestFollowSignalsRefusesBadArgumentsBeforeSending(t *testing.T) {
 			return c.FollowSignals(ctx, 0, &FollowSignalsOptions{Wait: 2500 * time.Millisecond}, handler)
 		},
 		func() error { return c.FollowSignals(ctx, 0, nil, nil) },
+		func() error { return c.FollowSignals(ctx, 3, &FollowSignalsOptions{AfterEventHash: "abc"}, handler) },
+		func() error {
+			return c.FollowSignals(ctx, 3, &FollowSignalsOptions{AfterEventHash: strings.Repeat("A", 64)}, handler)
+		},
 	} {
 		if callErr := call(); callErr == nil {
 			t.Fatalf("case %d accepted", i)
@@ -827,6 +832,340 @@ func TestSignalMethodsNeedAnAPIKey(t *testing.T) {
 	for i, callErr := range []error{getErr, followErr, createKeyErr, revokeKeyErr, createHookErr, listHookErr, deleteHookErr, deliveriesErr, receiptErr} {
 		if !errors.Is(callErr, ErrAPIKeyRequired) {
 			t.Fatalf("call %d: err = %v", i, callErr)
+		}
+	}
+}
+
+// feedHeadJSON is a feed head as the server serves it at the end of a page,
+// stating sequence as the feed's highest event, with a log index too large
+// for a float64 and a field this SDK does not name.
+func feedHeadJSON(sequence int64, statementHash string) string {
+	return fmt.Sprintf(`{"format":"verdifax.feed-head.v1","account":"account-7","sequence":%d,"head_hash":"%s",`+
+		`"stated_at":"2026-11-12T21:58:20.123456789Z","head_statement_hash":"%s",`+
+		`"anchor":{"log_index":1780000000123456789,"integrated_time":1794520700},"later_field":"kept"}`,
+		sequence, signOffHashSeen, statementHash)
+}
+
+// signalPageWithHead is signalPageJSON with the feed's head at its end.
+func signalPageWithHead(head string, nextAfter, newest int64, sequences ...int64) string {
+	page := signalPageJSON(nextAfter, newest, sequences...)
+	return strings.TrimSuffix(page, "}") + `,"head":` + head + "}"
+}
+
+const (
+	headStatementA = "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+	headStatementB = "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+)
+
+// Round 61, N23: a page that reaches the feed's end carries the feed's
+// head. GetSignals reads every field of it, keeps it apart from the events,
+// and a saved page keeps the head's exact bytes, as verdifax-verify
+// --signals reads them; a page without a head saves without one.
+func TestGetSignalsReadsAndKeepsTheFeedHead(t *testing.T) {
+	head := feedHeadJSON(7, headStatementA)
+	body := signalPageWithHead(head, 7, 7, 6, 7)
+	for _, asOwner := range []bool{false, true} {
+		c, seen := parityServer(t, Config{}, 200, body)
+		page, getErr := c.GetSignals(context.Background(), &GetSignalsOptions{After: 5, AsOwner: asOwner})
+		if getErr != nil {
+			t.Fatal(getErr)
+		}
+		if want := map[bool]string{false: "/signals", true: "/account/signals"}[asOwner]; (*seen)[0].Path != want {
+			t.Fatalf("read %s, want %s", (*seen)[0].Path, want)
+		}
+		if len(page.Events) != 2 || page.Events[1].Data.Sequence != 7 {
+			t.Fatalf("events = %+v", page.Events)
+		}
+		h := page.Head
+		if h == nil {
+			t.Fatal("the page's head was not read")
+		}
+		if h.Format != "verdifax.feed-head.v1" || h.Account != "account-7" || h.Sequence != 7 || h.HeadHash != signOffHashSeen ||
+			h.StatedAt != "2026-11-12T21:58:20.123456789Z" || h.HeadStatementHash != headStatementA ||
+			string(h.Anchor) != `{"log_index":1780000000123456789,"integrated_time":1794520700}` {
+			t.Fatalf("head = %+v", h)
+		}
+		saved, encodeErr := json.Marshal(page)
+		if encodeErr != nil {
+			t.Fatal(encodeErr)
+		}
+		if !strings.HasSuffix(string(saved), `,"head":`+head+"}") {
+			t.Fatalf("saved page %s\ndoes not end with the head as sent", saved)
+		}
+		var again SignalPage
+		if decodeErr := json.Unmarshal(saved, &again); decodeErr != nil || again.Head == nil || again.Head.HeadStatementHash != headStatementA {
+			t.Fatalf("the saved page does not read back: %v", decodeErr)
+		}
+	}
+	plain, _ := parityServer(t, Config{}, 200, signalPageJSON(7, 9, 6, 7))
+	page, getErr := plain.GetSignals(context.Background(), &GetSignalsOptions{After: 5})
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	saved, encodeErr := json.Marshal(page)
+	if encodeErr != nil {
+		t.Fatal(encodeErr)
+	}
+	if page.Head != nil || strings.Contains(string(saved), `"head"`) {
+		t.Fatalf("a page without a head read as %+v and saved as %s", page.Head, saved)
+	}
+	built, buildErr := json.Marshal(FeedHead{Format: "verdifax.feed-head.v1", Account: "account-7", Sequence: 3})
+	if buildErr != nil || !strings.Contains(string(built), `"sequence":3`) || strings.Contains(string(built), `"anchor"`) {
+		t.Fatalf("a head built in code marshals as %s, %v", built, buildErr)
+	}
+}
+
+// Round 61, N23: FollowSignals never hands the head to the handler as an
+// event. It keeps the newest head that states the feed through the last
+// event handled, passes each newer one to OnHead once, after the page's
+// events, and returns the one kept when it stops. A head on a page the
+// handler did not finish, or one that does not state the feed through the
+// page's last event, is not kept.
+func TestFollowSignalsKeepsTheNewestHeadAndNeverHandlesItAsAnEvent(t *testing.T) {
+	answers := []feedAnswer{
+		{200, signalPageJSON(2, 3, 1, 2)},
+		{200, signalPageWithHead(feedHeadJSON(3, headStatementA), 3, 3, 3)},
+		{200, signalPageWithHead(feedHeadJSON(3, headStatementA), 3, 3)},
+		{200, signalPageWithHead(feedHeadJSON(3, headStatementB), 3, 3)},
+		{200, signalPageWithHead(feedHeadJSON(9, headStatementA), 3, 3)},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c, seen := feedServer(t, answers, func(n int) {
+		if n == 6 {
+			cancel()
+		}
+	})
+	var handled []string
+	var heads []string
+	opts := &FollowSignalsOptions{OnHead: func(h *FeedHead) {
+		heads = append(heads, h.HeadStatementHash[:2])
+		handled = append(handled, "head")
+	}}
+	followErr := c.FollowSignals(ctx, 0, opts, func(event SignalEvent) error {
+		handled = append(handled, strconv.FormatInt(event.Data.Sequence, 10))
+		return nil
+	})
+	var stopped *FollowSignalsError
+	if !errors.As(followErr, &stopped) || stopped.After != 3 || !errors.Is(followErr, context.Canceled) {
+		t.Fatalf("err = %v", followErr)
+	}
+	if got := strings.Join(handled, " "); got != "1 2 3 head head" {
+		t.Fatalf("handled %s, want the three events, then the head, then the newer statement", got)
+	}
+	if fmt.Sprint(heads) != "[a1 b2]" {
+		t.Fatalf("OnHead saw %v", heads)
+	}
+	if stopped.Head == nil || stopped.Head.HeadStatementHash != headStatementB || stopped.Head.Sequence != 3 {
+		t.Fatalf("kept head = %+v", stopped.Head)
+	}
+	if len(seen()) != 6 {
+		t.Fatalf("read %d pages", len(seen()))
+	}
+
+	failed := errors.New("the handler's store is down")
+	unfinished, _ := feedServer(t, []feedAnswer{{200, signalPageWithHead(feedHeadJSON(2, headStatementA), 2, 2, 1, 2)}}, nil)
+	sawHead := false
+	followErr = unfinished.FollowSignals(context.Background(), 0, &FollowSignalsOptions{OnHead: func(*FeedHead) { sawHead = true }},
+		func(event SignalEvent) error {
+			if event.Data.Sequence == 2 {
+				return failed
+			}
+			return nil
+		})
+	if !errors.As(followErr, &stopped) || stopped.After != 1 || stopped.Head != nil || sawHead || !errors.Is(followErr, failed) {
+		t.Fatalf("a head on a page the handler did not finish was kept: err = %v, saw = %v", followErr, sawHead)
+	}
+
+	withoutOnHead, _ := feedServer(t, []feedAnswer{{200, signalPageWithHead(feedHeadJSON(1, headStatementA), 1, 1, 1)}, {400, `{"error":"stop"}`}}, nil)
+	followErr = withoutOnHead.FollowSignals(context.Background(), 0, nil, func(SignalEvent) error { return nil })
+	if !errors.As(followErr, &stopped) || stopped.Head == nil || stopped.Head.Sequence != 1 {
+		t.Fatalf("without OnHead the head is still kept: err = %v", followErr)
+	}
+}
+
+// feedHeadVector is testdata/sdk-feed-head-vector.json, the feed-head rule
+// every SDK's follower keeps (round 61, R252). Each head is a sequence and
+// a statement label standing for its head_statement_hash.
+type feedHeadVector struct {
+	Cases []struct {
+		Name  string `json:"name"`
+		Pages []struct {
+			Events    []int64         `json:"events"`
+			NextAfter int64           `json:"next_after"`
+			Head      *vectorFeedHead `json:"head"`
+		} `json:"pages"`
+		Start *struct {
+			After       int64  `json:"after"`
+			AfterHashOf *int64 `json:"after_hash_of"`
+		} `json:"start"`
+		HandleUntil      *int64           `json:"handle_until"`
+		ExpectedKept     *vectorFeedHead  `json:"expected_kept"`
+		ExpectedReported []vectorFeedHead `json:"expected_reported"`
+	} `json:"cases"`
+}
+
+// vectorFeedHead is a head as the vector names it. HeadHashOf, when set,
+// is the sequence whose event hash the head carries instead of its own.
+type vectorFeedHead struct {
+	Sequence   int64  `json:"sequence"`
+	Statement  string `json:"statement"`
+	HeadHashOf *int64 `json:"head_hash_of,omitempty"`
+}
+
+// String prints a head as the vector compares it: sequence and statement.
+func (h vectorFeedHead) String() string {
+	return fmt.Sprintf("{%d %s}", h.Sequence, h.Statement)
+}
+
+// vectorEventHash is the event_hash served for a sequence: the SHA-256 of
+// "e" followed by the sequence.
+func vectorEventHash(sequence int64) string {
+	return statementHash("e" + strconv.FormatInt(sequence, 10))
+}
+
+// vectorPageJSON is one of the vector's pages: its events, each with the
+// event_hash of its sequence, and its head, when it has one, whose
+// head_hash is the event_hash of its sequence or of head_hash_of.
+func vectorPageJSON(events []int64, nextAfter int64, head *vectorFeedHead) string {
+	parts := make([]string, len(events))
+	for i, sequence := range events {
+		parts[i] = strings.Replace(signalEventJSON(sequence), `"event_hash":"`+signOffHashSeen+`"`, `"event_hash":"`+vectorEventHash(sequence)+`"`, 1)
+	}
+	page := fmt.Sprintf(`{"events":[%s],"next_after":%d,"newest":%d`, strings.Join(parts, ","), nextAfter, nextAfter)
+	if head != nil {
+		hashOf := head.Sequence
+		if head.HeadHashOf != nil {
+			hashOf = *head.HeadHashOf
+		}
+		served := strings.Replace(feedHeadJSON(head.Sequence, statementHash(head.Statement)),
+			`"head_hash":"`+signOffHashSeen+`"`, `"head_hash":"`+vectorEventHash(hashOf)+`"`, 1)
+		page += `,"head":` + served
+	}
+	return page + "}"
+}
+
+// statementHash is the head_statement_hash served for a statement label:
+// its SHA-256, so equal labels are the same statement.
+func statementHash(label string) string {
+	sum := sha256.Sum256([]byte(label))
+	return hex.EncodeToString(sum[:])
+}
+
+// Every case of the shared vector, run through FollowSignals from the
+// case's start, after its after and with AfterEventHash the event_hash of
+// after_hash_of when it names one, against a server serving the case's
+// pages in order, each event with the event_hash
+// of its sequence and each head with the head_statement_hash of its
+// statement label and the head_hash the vector names. The handler stops, with
+// ErrStopFollowing, at the first event after handle_until; with
+// handle_until null it finishes every event, and the read after the last
+// page is refused, so FollowSignals returns the head it kept in its
+// *FollowSignalsError. The kept head and every head OnHead saw are read
+// back as sequence and statement label.
+func TestFollowSignalsKeepsTheHeadAsTheSharedVectorSays(t *testing.T) {
+	raw, readErr := os.ReadFile("testdata/sdk-feed-head-vector.json")
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	var vector feedHeadVector
+	if decodeErr := json.Unmarshal(raw, &vector); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if len(vector.Cases) == 0 {
+		t.Fatal("the vector has no cases")
+	}
+	for _, tc := range vector.Cases {
+		labels := map[string]string{}
+		answers := make([]feedAnswer, 0, len(tc.Pages)+1)
+		for _, p := range tc.Pages {
+			if p.Head != nil {
+				labels[statementHash(p.Head.Statement)] = p.Head.Statement
+			}
+			answers = append(answers, feedAnswer{200, vectorPageJSON(p.Events, p.NextAfter, p.Head)})
+		}
+		answers = append(answers, feedAnswer{400, `{"error":"no more pages in this case"}`})
+		asVector := func(h *FeedHead) vectorFeedHead {
+			label, known := labels[h.HeadStatementHash]
+			if !known {
+				t.Fatalf("%s: a head with a statement hash no page served: %s", tc.Name, h.HeadStatementHash)
+			}
+			return vectorFeedHead{Sequence: h.Sequence, Statement: label}
+		}
+		c, _ := feedServer(t, answers, nil)
+		reported := []vectorFeedHead{}
+		var lastReported *FeedHead
+		opts := &FollowSignalsOptions{OnHead: func(h *FeedHead) {
+			reported = append(reported, asVector(h))
+			lastReported = h
+		}}
+		after := int64(0)
+		if tc.Start != nil {
+			after = tc.Start.After
+			if tc.Start.AfterHashOf != nil {
+				opts.AfterEventHash = vectorEventHash(*tc.Start.AfterHashOf)
+			}
+		}
+		followErr := c.FollowSignals(context.Background(), after, opts, func(event SignalEvent) error {
+			if tc.HandleUntil != nil && event.Data.Sequence > *tc.HandleUntil {
+				return ErrStopFollowing
+			}
+			return nil
+		})
+		kept := lastReported
+		if tc.HandleUntil == nil {
+			var stopped *FollowSignalsError
+			var apiErr *APIError
+			if !errors.As(followErr, &stopped) || !errors.As(followErr, &apiErr) || apiErr.Status != 400 {
+				t.Fatalf("%s: err = %v", tc.Name, followErr)
+			}
+			if stopped.Head != lastReported {
+				t.Fatalf("%s: FollowSignalsError.Head %+v is not the last head OnHead saw, %+v", tc.Name, stopped.Head, lastReported)
+			}
+			kept = stopped.Head
+		} else if followErr != nil {
+			t.Fatalf("%s: err = %v", tc.Name, followErr)
+		}
+		var gotKept *vectorFeedHead
+		if kept != nil {
+			v := asVector(kept)
+			gotKept = &v
+		}
+		if fmt.Sprint(gotKept) != fmt.Sprint(tc.ExpectedKept) || fmt.Sprint(reported) != fmt.Sprint(tc.ExpectedReported) {
+			t.Errorf("%s: kept %v, reported %v; the vector expects kept %v, reported %v", tc.Name, gotKept, reported, tc.ExpectedKept, tc.ExpectedReported)
+		}
+	}
+}
+
+// FollowSignalsError carries AfterEventHash, the event hash of event After,
+// so a caller resumes with both: the last event the handler finished, the
+// AfterEventHash given when it finished none, and empty when neither.
+func TestFollowSignalsErrorCarriesTheHashOfEventAfter(t *testing.T) {
+	failed := errors.New("the handler's store is down")
+	midPage, _ := feedServer(t, []feedAnswer{{200, vectorPageJSON([]int64{1, 2}, 2, nil)}}, nil)
+	followErr := midPage.FollowSignals(context.Background(), 0, nil, func(event SignalEvent) error {
+		if event.Data.Sequence == 2 {
+			return failed
+		}
+		return nil
+	})
+	var stopped *FollowSignalsError
+	if !errors.As(followErr, &stopped) || stopped.After != 1 || stopped.AfterEventHash != vectorEventHash(1) {
+		t.Fatalf("handler error: err = %v, %+v", followErr, stopped)
+	}
+
+	given := vectorEventHash(5)
+	pageFailed, _ := feedServer(t, []feedAnswer{{200, vectorPageJSON([]int64{6, 7}, 7, nil)}, {400, `{"error":"stop"}`}}, nil)
+	followErr = pageFailed.FollowSignals(context.Background(), 5, &FollowSignalsOptions{AfterEventHash: given}, func(SignalEvent) error { return nil })
+	if !errors.As(followErr, &stopped) || stopped.After != 7 || stopped.AfterEventHash != vectorEventHash(7) {
+		t.Fatalf("page error after a page: err = %v, %+v", followErr, stopped)
+	}
+
+	for _, hash := range []string{given, ""} {
+		refused, _ := feedServer(t, []feedAnswer{{400, `{"error":"stop"}`}}, nil)
+		followErr = refused.FollowSignals(context.Background(), 5, &FollowSignalsOptions{AfterEventHash: hash}, func(SignalEvent) error { return nil })
+		if !errors.As(followErr, &stopped) || stopped.After != 5 || stopped.AfterEventHash != hash {
+			t.Fatalf("no event finished, given %q: err = %v, %+v", hash, followErr, stopped)
 		}
 	}
 }

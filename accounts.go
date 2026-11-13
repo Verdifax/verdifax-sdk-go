@@ -201,6 +201,21 @@ func (c *Client) RegisterAccountRequestKey(ctx context.Context) (*RequestKeyRegi
 	return c.registerRequestKeyAt(ctx, accountRequestKeyPath)
 }
 
+// RotateAccountRequestKey replaces the owner key's request key with newKey
+// at POST /account/request-key, as RotateRequestKey does for a key's own:
+// the new key proves it is held, this client's current key approves the
+// change, and after success the client signs with newKey. After any error
+// it keeps the current key, as on a 409 *APIError, which means the request
+// key changed since this client signed; after a timeout, check the
+// registration, because the server may have made the change. The rotation
+// is sealed in the account's feed as request_key.rotated, carrying the
+// current key's approval, so the owner key's request-key chain continues.
+// Returns ErrSigningKeyRequired when the client has no SigningKey or
+// newKey is nil.
+func (c *Client) RotateAccountRequestKey(ctx context.Context, newKey SigningKey) (*RequestKeyRegistration, error) {
+	return c.rotateRequestKeyAt(ctx, accountRequestKeyPath, newKey)
+}
+
 // ClearAccountRequestKey clears the owner key's request key, as
 // ClearRequestKey does for a key's own. With none registered, the
 // server refuses to activate an account policy. After success the client drops its

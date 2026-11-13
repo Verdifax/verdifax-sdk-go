@@ -75,8 +75,9 @@
 // An account is a company, and every API key belongs to one for life.
 // The account's owner key manages it with GetAccount, CreateAccountKey,
 // ListAccountKeys, RevokeAccountKey, RegisterAccountRequestKey,
-// ClearAccountRequestKey, ListAccountRuns, ExportAccountRuns,
-// ExportAccountRunsCSV, UploadAccountPolicy, ListAccountPolicies,
+// RotateAccountRequestKey, ClearAccountRequestKey, ListAccountRuns,
+// ExportAccountRuns, ExportAccountRunsCSV, UploadAccountPolicy,
+// ListAccountPolicies,
 // GetAccountPolicy, TestAccountPolicy, GetAccountPolicyHistory,
 // ActivateAccountPolicy, SetAccountSetting and DeleteRun, and cannot run
 // anything itself. SetAccountSetting and DeleteRun are signed by the
@@ -131,6 +132,20 @@
 // an event's hash. A delivery is a copy: the pull feed and the public
 // log are the record. The feed cannot show a signal Verdifax never
 // recorded. verdifax-verify --signals checks a saved feed.
+//
+// A page that reaches the feed's end carries the feed's head in
+// SignalPage.Head, a FeedHead: Verdifax's statement, anchored on the
+// public log, of the feed's highest event and that event's hash. It is not
+// an event: FollowSignals keeps the newest head that names the last event
+// the handler finished, by its sequence and hash, or event after by
+// FollowSignalsOptions.AfterEventHash when resuming, passes it to
+// FollowSignalsOptions.OnHead and returns it in FollowSignalsError.Head,
+// beside AfterEventHash, the event hash of event After, to resume with,
+// and never passes it to the handler. Each registration, rotation and
+// clear of a key's request key is an account.changed event, an
+// AccountChange whose Action is one of the AccountChangeRequestKey
+// actions, and a rotation and a holder's clear carry the previous key's
+// RequestKeyApproval.
 //
 //	err := feed.FollowSignals(ctx, lastSequenceRead, nil, func(event verdifax.SignalEvent) error {
 //	    fmt.Println(event.Data.Sequence, event.Data.Kind)
