@@ -39,7 +39,9 @@ const (
 
 // The owner's two settings, as SetAccountSetting names them. While
 // AccountSettingOwnerReplacement is blocked, Verdifax cannot replace,
-// revoke or start replacing the account's owner key. While
+// revoke or start replacing the account's owner key, and from verifier
+// v0.35.0's server release on it cannot clear the owner key's request key
+// either. While
 // AccountSettingVerdifaxDeletion is blocked, Verdifax cannot delete one of
 // the account's records. The owner's own deletions are never blocked.
 const (

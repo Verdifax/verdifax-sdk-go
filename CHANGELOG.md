@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.16.0
+
+Webhook changes signed by the owner and sealed in the feed.
+
+- From verifier v0.35.0's server release on, a webhook is added and removed only with its record in the account's feed: an `account.changed` event, `webhook.subscribed` or `webhook.deleted`, decided by the owner and signed by the owner key's request key over the webhook's value, `sha256=` and the SHA-256 of the address exactly as sent, then ` kinds=` and the kinds sorted and joined with commas, or `all`. The record never holds the address, which can carry a token, so Verdifax, which never holds the owner's request key, cannot add a destination for the account's events. The server refuses an address not sent in the form it stores, with a 400 naming that form.
+- `CreateWebhook` now takes `opts *OwnerChangeOptions` after `types`, and `DeleteWebhook` now takes `opts` and returns `(*WebhookDeletion, error)`: both sign the change with the client's `SigningKey`, the owner key's request key, and return `ErrSigningKeyRequired` before anything is sent without one. The account's label is read from `GetAccount` unless `opts` names it. `DeleteWebhook` reads the subscription from `ListWebhooks` and signs its value; an ID the account holds no live webhook with is refused before the removal is sent. Both check the record in the answer, `CreatedWebhook.AccountChange` and `WebhookDeletion.AccountChange`: it must carry the change, the value, the owner as decider and the signature sent, or they return an error. These two signatures change; a caller passes `nil` for `opts` and reads the deletion's record.
+- `WebhookValue(url, types)`, `WebhookSubscribed` and `WebhookDeleted` name the value and the changes; `WebhookValue` makes no request. The shared vector `sdk-webhook-change-vector.json` fixes the value for the four SDKs, the server and the verifier, and a test here reads it.
+- The owner-replacement setting's description now says that, from verifier v0.35.0's server release on, Verdifax also cannot clear the owner key's request key while the owner blocks owner-key replacement.
+- The user agent is `verdifax-sdk-go/1.16.0`.
+
 ## 1.15.0
 
 The feed's head, and request-key changes read from the feed.

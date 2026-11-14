@@ -537,8 +537,9 @@ func TestTheFeedKnowsAccountChangesAndDeletions(t *testing.T) {
 	if SignalAccountChanged != "account.changed" || SignalRunDeleted != "run.deleted" {
 		t.Fatal("the kinds are not the server's")
 	}
-	c, seen := parityServer(t, Config{}, 201, webhookAnswer)
-	if _, err := c.CreateWebhook(context.Background(), "https://hooks.example.com/x", []string{SignalAccountChanged, SignalRunDeleted}); err != nil {
+	c, seen := webhookEchoServer(t, nil)
+	if _, err := c.CreateWebhook(context.Background(), "https://hooks.example.com/x", []string{SignalAccountChanged, SignalRunDeleted},
+		&OwnerChangeOptions{AccountID: "account-7"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(*seen) != 1 {

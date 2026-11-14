@@ -41,6 +41,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -371,6 +372,46 @@ type CreatedWebhook struct {
 	// VerifyWebhook to check each delivery.
 	Secret string `json:"secret"`
 	Hint   string `json:"hint"`
+
+	// AccountChange is the subscription's record in the account's feed
+	// (round 62), webhook.subscribed, signed by the owner's request key.
+	AccountChange *AccountChange `json:"account_change"`
+}
+
+// WebhookDeletion is DeleteWebhook's answer.
+type WebhookDeletion struct {
+	OK      bool  `json:"ok"`
+	ID      int64 `json:"id"`
+	Deleted bool  `json:"deleted"`
+
+	// AccountChange is the removal's record in the account's feed (round
+	// 62), webhook.deleted, signed by the owner's request key.
+	AccountChange *AccountChange `json:"account_change"`
+}
+
+// WebhookSubscribed and WebhookDeleted are the account changes that add and
+// remove a webhook (round 62). The owner key's request key signs each over
+// WebhookValue, so Verdifax cannot add a destination for the account's
+// events.
+const (
+	WebhookSubscribed = "webhook.subscribed"
+	WebhookDeleted    = "webhook.deleted"
+)
+
+// WebhookValue is the value a webhook change seals and the owner signs:
+// sha256= and the SHA-256 of the address exactly as sent, as lowercase hex,
+// then " kinds=" and the kinds sorted and joined with commas, or "all" when
+// none are named. The record never holds the address, which can carry a
+// token. Fixed by the shared vector sdk-webhook-change-vector.json.
+func WebhookValue(webhookURL string, types []string) string {
+	sum := sha256.Sum256([]byte(webhookURL))
+	kinds := append([]string(nil), types...)
+	sort.Strings(kinds)
+	joined := strings.Join(kinds, ",")
+	if joined == "" {
+		joined = "all"
+	}
+	return "sha256=" + hex.EncodeToString(sum[:]) + " kinds=" + joined
 }
 
 // WebhookDelivery is one delivery of one event to a subscription.
@@ -661,10 +702,22 @@ func checkWebhookTypes(types []string) error {
 // feed and the public log are the record. It needs the owner key, and
 // refuses a bad address or type before sending anything.
 //
+// From verifier v0.35.0's server release on, the subscription is added only
+// with its record in the account's feed, an account.changed event
+// webhook.subscribed signed with the client's SigningKey, the owner key's
+// request key, over WebhookValue: the SHA-256 of the address, never the
+// address, and the kinds. A client without one gets ErrSigningKeyRequired
+// before anything is sent. Send the address exactly as the server stores
+// it: the server refuses another form with HTTP 400 naming the stored one.
+// The account's label is read from GetAccount unless opts names it. The
+// record returned must seal the change, the value, the owner as decider and
+// the signature this client sent, or CreateWebhook returns an error. The
+// new subscription receives its own record's event first.
+//
 // The server answers HTTP 409, an *APIError, when the account already
 // holds ten subscriptions, and HTTP 503 when the deployment has no key
 // to protect webhook secrets.
-func (c *Client) CreateWebhook(ctx context.Context, webhookURL string, types []string) (*CreatedWebhook, error) {
+func (c *Client) CreateWebhook(ctx context.Context, webhookURL string, types []string, opts *OwnerChangeOptions) (*CreatedWebhook, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
 	}
@@ -677,15 +730,42 @@ func (c *Client) CreateWebhook(ctx context.Context, webhookURL string, types []s
 	if types == nil {
 		types = []string{}
 	}
+	signer, signerErr := c.ownerChangeSigner()
+	if signerErr != nil {
+		return nil, signerErr
+	}
+	account, accountErr := c.ownerAccountLabel(ctx, opts)
+	if accountErr != nil {
+		return nil, accountErr
+	}
+	value := WebhookValue(webhookURL, types)
+	sig, signErr := signOwnerChange(signer, account, WebhookSubscribed, value)
+	if signErr != nil {
+		return nil, signErr
+	}
 	body := struct {
-		URL   string   `json:"url"`
-		Types []string `json:"types"`
-	}{URL: webhookURL, Types: types}
+		URL            string          `json:"url"`
+		Types          []string        `json:"types"`
+		OwnerSignature *OwnerSignature `json:"owner_signature"`
+	}{URL: webhookURL, Types: types, OwnerSignature: sig}
 	out := &CreatedWebhook{}
 	if createErr := c.doRequest(ctx, "POST", accountWebhooksPath, body, out); createErr != nil {
 		return nil, createErr
 	}
+	if recordErr := checkWebhookChange(out.AccountChange, WebhookSubscribed, value, sig, signer.publicKeyBase64()); recordErr != nil {
+		return nil, recordErr
+	}
 	return out, nil
+}
+
+// checkWebhookChange checks a webhook change's sealed record: it must seal
+// the change, the value, the owner as decider and the signature sent.
+func checkWebhookChange(got *AccountChange, action, value string, sig *OwnerSignature, publicKey string) error {
+	if got == nil || got.Action != action || got.Value != value || got.DecidedBy != DecidedByOwner ||
+		!sealsOwnerSignature(got.OwnerSignature, sig, publicKey) {
+		return errors.New("verdifax: the webhook change the server returned is not the change this client signed: its action, value, decided_by or owner_signature differs")
+	}
+	return nil
 }
 
 // ListWebhooks lists the account's webhook subscriptions, without their
@@ -708,16 +788,58 @@ func (c *Client) ListWebhooks(ctx context.Context) ([]Webhook, error) {
 }
 
 // DeleteWebhook ends one of the account's subscriptions by ID. Its
-// undelivered events stay in the pull feed. A subscription not in the
-// account comes back as a *NotFoundError. It needs the owner key.
-func (c *Client) DeleteWebhook(ctx context.Context, webhookID int64) error {
+// undelivered events stay in the pull feed. It needs the owner key and the
+// client's SigningKey, the owner key's request key: the client reads the
+// subscription from ListWebhooks and signs webhook.deleted over its
+// WebhookValue, and the removal is sealed in the account's feed; the removed
+// subscription is not sent that event. A client without a SigningKey gets
+// ErrSigningKeyRequired before anything is sent, and an ID the account holds
+// no live subscription with is refused before the removal is sent. The
+// record returned is checked as CreateWebhook checks it.
+func (c *Client) DeleteWebhook(ctx context.Context, webhookID int64, opts *OwnerChangeOptions) (*WebhookDeletion, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
-		return keyErr
+		return nil, keyErr
 	}
 	if webhookID <= 0 {
-		return errors.New("verdifax: webhookID must be > 0")
+		return nil, errors.New("verdifax: webhookID must be > 0")
 	}
-	return c.doRequest(ctx, "DELETE", fmt.Sprintf("%s/%d", accountWebhooksPath, webhookID), nil, nil)
+	signer, signerErr := c.ownerChangeSigner()
+	if signerErr != nil {
+		return nil, signerErr
+	}
+	hooks, listErr := c.ListWebhooks(ctx)
+	if listErr != nil {
+		return nil, listErr
+	}
+	var hook *Webhook
+	for i := range hooks {
+		if hooks[i].ID == webhookID {
+			hook = &hooks[i]
+		}
+	}
+	if hook == nil {
+		return nil, fmt.Errorf("verdifax: the account holds no webhook %d", webhookID)
+	}
+	account, accountErr := c.ownerAccountLabel(ctx, opts)
+	if accountErr != nil {
+		return nil, accountErr
+	}
+	value := WebhookValue(hook.URL, hook.Types)
+	sig, signErr := signOwnerChange(signer, account, WebhookDeleted, value)
+	if signErr != nil {
+		return nil, signErr
+	}
+	body := struct {
+		OwnerSignature *OwnerSignature `json:"owner_signature"`
+	}{OwnerSignature: sig}
+	out := &WebhookDeletion{}
+	if deleteErr := c.doRequest(ctx, "DELETE", fmt.Sprintf("%s/%d", accountWebhooksPath, webhookID), body, out); deleteErr != nil {
+		return nil, deleteErr
+	}
+	if recordErr := checkWebhookChange(out.AccountChange, WebhookDeleted, value, sig, signer.publicKeyBase64()); recordErr != nil {
+		return nil, recordErr
+	}
+	return out, nil
 }
 
 // ListWebhookDeliveries lists a subscription's newest deliveries, at most

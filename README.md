@@ -138,9 +138,9 @@ func main() {
 | `FollowSignals(ctx, after, opts, fn)` | `GET /signals` page after page, or with `AsOwner` `GET /account/signals` | feed key, or owner |
 | `CreateFeedKey(ctx, name, expiresAt)` | `POST /account/feed-keys` | owner |
 | `RevokeFeedKey(ctx, id)` | `DELETE /account/feed-keys/{id}` | owner |
-| `CreateWebhook(ctx, url, types)` | `POST /account/webhooks` | owner |
+| `CreateWebhook(ctx, url, types, opts)` | `POST /account/webhooks` | owner, signed by its request key |
 | `ListWebhooks(ctx)` | `GET /account/webhooks` | owner |
-| `DeleteWebhook(ctx, id)` | `DELETE /account/webhooks/{id}` | owner |
+| `DeleteWebhook(ctx, id, opts)` | `DELETE /account/webhooks/{id}` | owner, signed by its request key |
 | `ListWebhookDeliveries(ctx, id, limit)` | `GET /account/webhooks/{id}/deliveries` | owner |
 | `GetFailureReceipt(ctx, id)` | `GET /runs/{id}/failure-receipt` | required |
 | `AdminCreateKey(ctx, name, opts...)` | `POST /admin/keys` | admin |
@@ -157,7 +157,7 @@ func main() {
 
 `client.Job(jobID)` makes no request either. It returns the `Job` that `Step` runs on.
 
-These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `OwnerChangePreimage`, `SignOffPreimage`, `ApproverKeyProof`, `SignalEventHash`, `VerifyWebhook`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
+These functions make no request: `CaptureEnvironment`, `FormatProviderPayload`, `SignRequest`, `RequestKeyRegistrationBody`, `RequestSignaturePreimage`, `PolicyActivationPreimage`, `PolicyActivationApproval`, `OwnerChangePreimage`, `SignOffPreimage`, `ApproverKeyProof`, `SignalEventHash`, `VerifyWebhook`, `WebhookValue`, `GenerateRequestKey`, `ValidateHex64`, `ValidateRouteID`, `DSEDispatchHash`, `DCAEClosureHash` and `CRESReceiptHash`. `RunStatuses` lists every run status the server uses.
 
 `GetRunArtifacts`, `GetPublicBundle`, `GetPublicBundleByToken`, `GetPolicyHistory`, `GetSignOffHistory` and `GetFailureReceipt` return the exact JSON bytes the server sent, so you can save them and check them with `verdifax-verify`.
 
@@ -587,10 +587,10 @@ Since the server release that came with verdifax-verify v0.34.0, every registrat
 Webhooks push each event to an `https://` address after it is stored, in the same envelope the feed serves, and retry a failed delivery for up to 24 hours. A delivery is a copy: the pull feed and the public log are the record, and a missed delivery is read again from the feed.
 
 ```go
-// The owner key subscribes. nil types delivers every kind. The secret is
-// shown once.
+// The owner key subscribes, from a client whose SigningKey is the owner
+// key's request key. nil types delivers every kind. The secret is shown once.
 hook, err := owner.CreateWebhook(ctx, "https://hooks.example.com/verdifax",
-    []string{verdifax.SignalRunRefused, verdifax.SignalRunHalted, verdifax.SignalRunFailed})
+    []string{verdifax.SignalRunRefused, verdifax.SignalRunHalted, verdifax.SignalRunFailed}, nil)
 if err != nil {
     log.Fatal(err)
 }
@@ -619,7 +619,9 @@ http.HandleFunc("/verdifax", func(w http.ResponseWriter, r *http.Request) {
 
 `VerifyWebhook` follows the Standard Webhooks scheme. The secret is `whsec_` and base64. The signed content is `webhook-id`, a dot, `webhook-timestamp`, a dot and the raw body bytes, and any one of the `v1` signatures in `webhook-signature` may match, compared in constant time. It refuses a timestamp more than the tolerance from now in either direction; a tolerance of 0 means 5 minutes, and a zero time means now. Header names may be in any case. Its error says which check failed and never holds the secret.
 
-`CreateWebhook` refuses an address that does not start with `https://`, and a type that is not a signal kind (one of the `Signal` constants) or is named twice, before sending anything. The server checks the address too, and refuses one that is not https on a public host. An account holds at most ten subscriptions. `ListWebhooks` lists them without their secrets, `DeleteWebhook` ends one, and its undelivered events stay in the feed. `ListWebhookDeliveries` shows each delivery's status, attempts and last answer.
+`CreateWebhook` refuses an address that does not start with `https://`, and a type that is not a signal kind (one of the `Signal` constants) or is named twice, before sending anything. The server checks the address too, and refuses one that is not https on a public host. An account holds at most ten subscriptions. `ListWebhooks` lists them without their secrets, `DeleteWebhook` ends one, and its undelivered events stay in the feed.
+
+From verifier v0.35.0's server release on, a webhook is added and removed only with its record in the account's feed: an `account.changed` event, `WebhookSubscribed` or `WebhookDeleted`, signed with the client's `SigningKey`, the owner key's request key, over `WebhookValue(url, types)`, which is `sha256=` and the SHA-256 of the address exactly as sent, then ` kinds=` and the kinds sorted and joined with commas, or `all`. The record never holds the address, which can carry a token, and Verdifax, which never holds the owner's request key, cannot add a destination for the account's events. Send the address exactly as the server stores it: the server refuses another form with HTTP 400 naming the stored one. A client without a `SigningKey` gets `ErrSigningKeyRequired` before anything is sent. `CreateWebhook` signs the subscription; `DeleteWebhook` reads it from `ListWebhooks` and signs its value, and returns a `WebhookDeletion`; both check the sealed record in the answer and return an error if it does not carry what was sent. The account's label is read from `GetAccount` unless `opts` names it. A new subscription receives its own record's event first, and a removed one is not sent the event that removes it. `verdifax-verify --signals` lists the subscriptions in place at the end of a feed read from its start. The shared vector `testdata/sdk-webhook-change-vector.json` fixes the value for all four SDKs. `ListWebhookDeliveries` shows each delivery's status, attempts and last answer.
 
 `GetFailureReceipt` returns the sealed failure receipt of a run that failed with a server error, as the exact JSON bytes the server sent. It names the request and the stage that failed. A failed run from before failure receipts comes back as a `*NotFoundError`.
 

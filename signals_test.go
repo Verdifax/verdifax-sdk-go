@@ -649,38 +649,39 @@ const webhookAnswer = `{"ok":true,"id":3,"url":"https://hooks.example.com/verdif
 	`"created_at":"2026-11-07T12:00:00Z","secret":"whsec_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=","hint":"Store this secret now."}`
 
 func TestCreateWebhookSendsTheAddressAndTypes(t *testing.T) {
-	c, seen := parityServer(t, Config{}, 201, webhookAnswer)
-	out, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/verdifax", []string{SignalRunRefused, SignalKeyRevoked})
+	c, seen := webhookEchoServer(t, nil)
+	account := &OwnerChangeOptions{AccountID: "account-7"}
+	out, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/verdifax", []string{SignalRunRefused, SignalKeyRevoked}, account)
 	if createErr != nil {
 		t.Fatal(createErr)
 	}
 	if !out.OK || out.ID != 3 || out.URL != "https://hooks.example.com/verdifax" || fmt.Sprint(out.Types) != "[run.refused key.revoked]" ||
-		out.CreatedAt != "2026-11-07T12:00:00Z" || !strings.HasPrefix(out.Secret, "whsec_") || out.Hint == "" {
+		out.CreatedAt == "" || !strings.HasPrefix(out.Secret, "whsec_") || out.Hint == "" {
 		t.Fatalf("webhook = %+v", out)
 	}
 	if got := (*seen)[0]; got.Method != "POST" || got.Path != "/account/webhooks" ||
-		string(got.Body) != `{"url":"https://hooks.example.com/verdifax","types":["run.refused","key.revoked"]}` {
+		!strings.HasPrefix(string(got.Body), `{"url":"https://hooks.example.com/verdifax","types":["run.refused","key.revoked"],"owner_signature":`) {
 		t.Fatalf("sent %s %s %s", got.Method, got.Path, got.Body)
 	}
 	for _, every := range [][]string{nil, {}} {
-		if _, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/all", every); createErr != nil {
+		if _, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/all", every, account); createErr != nil {
 			t.Fatal(createErr)
 		}
 	}
 	for _, got := range (*seen)[1:] {
-		if string(got.Body) != `{"url":"https://hooks.example.com/all","types":[]}` {
+		if !strings.HasPrefix(string(got.Body), `{"url":"https://hooks.example.com/all","types":[],"owner_signature":`) {
 			t.Fatalf("every kind: sent %s", got.Body)
 		}
 	}
 	all := append([]string(nil), signalKinds...)
-	if _, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/all", all); createErr != nil {
+	if _, createErr := c.CreateWebhook(context.Background(), "https://hooks.example.com/all", all, account); createErr != nil {
 		t.Fatalf("every kind: %v", createErr)
 	}
 	for status, message := range map[int]string{409: "an account may hold 10 webhook subscriptions", 503: "webhooks need the deployment's KMS key",
 		400: "the webhook address must be https on a public host"} {
-		refused, _ := parityServer(t, Config{}, status, `{"error":"`+message+`"}`)
+		refused, _ := parityServer(t, Config{SigningKey: vectorSeed()}, status, `{"error":"`+message+`"}`)
 		var apiErr *APIError
-		if _, createErr := refused.CreateWebhook(context.Background(), "https://hooks.example.com/x", nil); !errors.As(createErr, &apiErr) || apiErr.Status != status {
+		if _, createErr := refused.CreateWebhook(context.Background(), "https://hooks.example.com/x", nil, account); !errors.As(createErr, &apiErr) || apiErr.Status != status {
 			t.Fatalf("HTTP %d: err = %v", status, createErr)
 		}
 	}
@@ -698,7 +699,7 @@ func TestCreateWebhookRefusesBadInputBeforeSending(t *testing.T) {
 		{"https://hooks.example.com", []string{""}},
 		{"https://hooks.example.com", []string{SignalRunHalted, SignalRunHalted}},
 	} {
-		if _, createErr := c.CreateWebhook(context.Background(), tc.address, tc.types); createErr == nil {
+		if _, createErr := c.CreateWebhook(context.Background(), tc.address, tc.types, nil); createErr == nil {
 			t.Fatalf("case %d accepted: %+v", i, tc)
 		}
 	}
@@ -724,24 +725,24 @@ func TestListAndDeleteWebhooksUseTheAccountRoutes(t *testing.T) {
 		t.Fatalf("webhooks = %v, err = %v", hooks, listErr)
 	}
 
-	deleted, deletedSeen := parityServer(t, Config{}, 200, `{"ok":true,"id":3,"deleted":true}`)
-	if deleteErr := deleted.DeleteWebhook(context.Background(), 3); deleteErr != nil {
+	deleted, deletedSeen := webhookEchoServer(t, nil)
+	if _, deleteErr := deleted.DeleteWebhook(context.Background(), 3, &OwnerChangeOptions{AccountID: "account-7"}); deleteErr != nil {
 		t.Fatal(deleteErr)
 	}
-	if got := (*deletedSeen)[0]; got.Method != "DELETE" || got.Path != "/account/webhooks/3" || len(got.Body) != 0 {
+	if got := (*deletedSeen)[1]; got.Method != "DELETE" || got.Path != "/account/webhooks/3" || !strings.HasPrefix(string(got.Body), `{"owner_signature":`) {
 		t.Fatalf("sent %+v", got)
 	}
 	for _, id := range []int64{0, -1} {
-		if deleteErr := deleted.DeleteWebhook(context.Background(), id); deleteErr == nil {
+		if _, deleteErr := deleted.DeleteWebhook(context.Background(), id, nil); deleteErr == nil {
 			t.Fatalf("webhook id %d accepted", id)
 		}
 	}
-	if len(*deletedSeen) != 1 {
+	if len(*deletedSeen) != 2 {
 		t.Fatalf("sent %d requests", len(*deletedSeen))
 	}
-	missing, _ := parityServer(t, Config{}, 404, `{"ok":false,"error":"no such webhook in this account"}`)
+	missing, _ := parityServer(t, Config{SigningKey: vectorSeed()}, 404, `{"ok":false,"error":"no such webhook in this account"}`)
 	var notFound *NotFoundError
-	if deleteErr := missing.DeleteWebhook(context.Background(), 9); !errors.As(deleteErr, &notFound) {
+	if _, deleteErr := missing.DeleteWebhook(context.Background(), 9, nil); !errors.As(deleteErr, &notFound) {
 		t.Fatalf("err = %v", deleteErr)
 	}
 }
@@ -824,9 +825,9 @@ func TestSignalMethodsNeedAnAPIKey(t *testing.T) {
 	followErr := c.FollowSignals(ctx, 0, nil, func(SignalEvent) error { return nil })
 	_, createKeyErr := c.CreateFeedKey(ctx, "siem", nil)
 	revokeKeyErr := c.RevokeFeedKey(ctx, 21)
-	_, createHookErr := c.CreateWebhook(ctx, "https://hooks.example.com", nil)
+	_, createHookErr := c.CreateWebhook(ctx, "https://hooks.example.com", nil, nil)
 	_, listHookErr := c.ListWebhooks(ctx)
-	deleteHookErr := c.DeleteWebhook(ctx, 3)
+	_, deleteHookErr := c.DeleteWebhook(ctx, 3, nil)
 	_, deliveriesErr := c.ListWebhookDeliveries(ctx, 3, 0)
 	_, receiptErr := c.GetFailureReceipt(ctx, 7)
 	for i, callErr := range []error{getErr, followErr, createKeyErr, revokeKeyErr, createHookErr, listHookErr, deleteHookErr, deliveriesErr, receiptErr} {
