@@ -160,6 +160,15 @@ type PolicyContext struct {
 	// it. It is sealed with the policy inputs, and a rule's data_quality
 	// condition can require and test it. Verdifax judges none of it.
 	DataQuality *DataQuality `json:"data_quality,omitempty"`
+
+	// DataUse is your declaration of the data use the decision rests on,
+	// in your own short codes: a purpose, a basis, the categories of data
+	// and an optional keyed reference (HMACSHA256Reference). Verdifax seals
+	// the declaration as made, in the policy inputs and in its own data_use
+	// field of the run's record or receipt, and a rule's data_use condition
+	// can test it. Verdifax does not check it. It needs verdifax-verify
+	// v0.38.0 to verify, and a server whose round 64 release setting is on.
+	DataUse *DataUse `json:"data_use,omitempty"`
 }
 
 // DataQuality is a request's declaration about the data its decision used.
@@ -235,7 +244,13 @@ func checkPolicyContext(p *PolicyContext) error {
 	if objectIDBytes := len(wireString(p.ObjectID)); objectIDBytes > maxPolicyObjectIDBytes {
 		return fmt.Errorf("verdifax: policy_context.object_id is longer than %d bytes (got %d)", maxPolicyObjectIDBytes, objectIDBytes)
 	}
-	return checkDataQuality(p.DataQuality)
+	if dqErr := checkDataQuality(p.DataQuality); dqErr != nil {
+		return dqErr
+	}
+	if p.DataUse == nil {
+		return nil
+	}
+	return ValidateDataUse(p.DataUse)
 }
 
 // asOfShape is the one form an as_of time may take, in ASCII digits:
@@ -291,6 +306,9 @@ func checkDataQuality(dq *DataQuality) error {
 func checkPolicyFields(prepared *ExecuteRequest) error {
 	if contextErr := checkPolicyContext(prepared.PolicyContext); contextErr != nil {
 		return contextErr
+	}
+	if clientErr := checkClientFields(prepared.AttestedContext); clientErr != nil {
+		return clientErr
 	}
 	if prepared.PolicyContext.describesActor() && prepared.AttestedContext["attested"] != true {
 		return errors.New("verdifax: policy_context.actor_type, mfa_satisfied and session_age_seconds describe the attested actor; send AttestedContext with the actor")

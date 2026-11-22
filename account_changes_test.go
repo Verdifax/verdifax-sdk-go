@@ -564,6 +564,9 @@ func init() {
 		policy_context.object_type policy_context.object_id policy_context.classification policy_context.data_quality
 		policy_context.data_quality.source policy_context.data_quality.as_of policy_context.data_quality.checks
 		policy_context.data_quality.checks.name policy_context.data_quality.checks.result expected_policy_hash
+		policy_context.data_use policy_context.data_use.purpose policy_context.data_use.basis
+		policy_context.data_use.categories policy_context.data_use.reference
+		attested_context.client_name attested_context.client_version
 		attested_context attested_context.actor_id attested_context.actor_role attested_context.actor_signature
 		attested_context.attested attested_context.authorization_policy attested_context.decision_kind
 		attested_context.decision_note attested_context.decision_result attested_context.model_name
@@ -638,10 +641,12 @@ func TestEveryExecuteBodyHoldsOnlyServerFields(t *testing.T) {
 	full := func(withJob bool) *ExecuteRequest {
 		req := &ExecuteRequest{PayloadText: "hello", ProgramID: vectorProgramID, RouteID: vectorRouteID,
 			RegistryRecordHash: vectorRegistry, AIOutputText: "answer", ExpectedPolicyHash: vectorRegistry,
-			AttestedContext: map[string]any{"actor_id": "user-42", "model_name": "m"},
+			AttestedContext: map[string]any{"actor_id": "user-42", "model_name": "m", "client_name": "Claude Code", "client_version": "2.9.0"},
 			PolicyContext: &PolicyContext{ActorType: "user", MFASatisfied: true, SessionAgeSeconds: 60, ObjectType: "transaction",
 				ObjectID: "o", Classification: "INTERNAL", DataQuality: &DataQuality{Source: "core", AsOf: "2026-11-11T09:00:00Z",
-					Checks: []DataCheck{{Name: "fresh", Result: "pass"}}}},
+					Checks: []DataCheck{{Name: "fresh", Result: "pass"}}},
+				DataUse: &DataUse{Purpose: "claims.review", Basis: "contract", Categories: []string{"claims"},
+					Reference: "hmac-sha256:" + vectorRegistry}},
 			ReproducibilityContext: &ReproducibilityContext{ContainerImageHash: "sha256:x", RuntimeName: "go", RuntimeVersion: "1",
 				PinnedDependencies: []string{"a@1"}, GitCommitSHA: "abc", RandomSeeds: []string{"1"}, Platform: "linux/amd64"},
 			RequestSubstance: map[string]any{"kind": "x"}, AuthorizationChain: map[string]any{"kind": "x"},

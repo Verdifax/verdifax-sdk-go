@@ -1,0 +1,304 @@
+{
+ "_comment": "Round 64, feature 6: the data-use declaration (policy_context.data_use) every SDK checks before sending, as the server checks it (orchestrator internal/api/policy_gate.go checkDataUse and checkClient, internal/pepg/psl/round64.go), and the keyed reference helper. A code is ^[a-z0-9][a-z0-9._:-]{0,63}$ matched against the whole text (a trailing newline is refused). purpose and basis are required codes; categories is a list of at most 20 distinct codes; reference, when present and not empty, is hmac-sha256: and 64 lowercase hex digits; an empty reference or an empty categories list is a value left out, as the server reads it. No other key is accepted. The reference helper computes hmac-sha256: and the lowercase hex HMAC-SHA256 of the identifier's UTF-8 bytes under the customer's key (key_hex, at least 32 bytes) on the customer's own machine, so the identifier itself never leaves it; it refuses a shorter key or an empty identifier. client_name and client_version in attested_context are at most 128 bytes of printable ASCII (0x20 to 0x7e) with no leading or trailing space; an empty value is one left out. Verdifax seals each declaration as made and does not check it. Every SDK reads this file in a test.",
+ "code": {
+  "accept": [
+   "claims.review",
+   "contract",
+   "a",
+   "0",
+   "legitimate_interest",
+   "gdpr:art6-1-b",
+   "a.b_c:d-e",
+   "x-",
+   "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "refuse": [
+   "",
+   "Claims",
+   "claims review",
+   "user@example.com",
+   ".claims",
+   "_a",
+   "-a",
+   ":a",
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "claims\n",
+   "claims ",
+   " claims",
+   "caf\u00e9",
+   "a/b",
+   "a+b",
+   "\uff41",
+   "a\u0000b",
+   "\u0661"
+  ]
+ },
+ "reference": {
+  "accept": [
+   "hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000",
+   "hmac-sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   ""
+  ],
+  "refuse": [
+   "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "hmac-sha256:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+   "hmac-sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde",
+   "hmac-sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0",
+   "HMAC-SHA256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "hmac-sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n",
+   "CN-48213",
+   "hmac-sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde",
+   "hmac-sha512:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "hmac-sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd\u0661"
+  ]
+ },
+ "declarations": {
+  "accept": [
+   {
+    "name": "purpose and basis",
+    "data_use": {
+     "purpose": "claims.review",
+     "basis": "contract"
+    }
+   },
+   {
+    "name": "every field",
+    "data_use": {
+     "purpose": "claims.review",
+     "basis": "legitimate_interest",
+     "categories": [
+      "claims",
+      "contact"
+     ],
+     "reference": "hmac-sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+   },
+   {
+    "name": "twenty categories",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "categories": [
+      "c00",
+      "c01",
+      "c02",
+      "c03",
+      "c04",
+      "c05",
+      "c06",
+      "c07",
+      "c08",
+      "c09",
+      "c10",
+      "c11",
+      "c12",
+      "c13",
+      "c14",
+      "c15",
+      "c16",
+      "c17",
+      "c18",
+      "c19"
+     ]
+    }
+   },
+   {
+    "name": "an empty categories list and an empty reference are values left out",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "categories": [],
+     "reference": ""
+    }
+   }
+  ],
+  "refuse": [
+   {
+    "name": "no purpose",
+    "data_use": {
+     "basis": "contract"
+    }
+   },
+   {
+    "name": "no basis",
+    "data_use": {
+     "purpose": "claims.review"
+    }
+   },
+   {
+    "name": "an empty purpose",
+    "data_use": {
+     "purpose": "",
+     "basis": "contract"
+    }
+   },
+   {
+    "name": "a purpose with a space",
+    "data_use": {
+     "purpose": "claims review",
+     "basis": "contract"
+    }
+   },
+   {
+    "name": "a basis with capitals",
+    "data_use": {
+     "purpose": "claims.review",
+     "basis": "Contract"
+    }
+   },
+   {
+    "name": "twenty-one categories",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "categories": [
+      "c00",
+      "c01",
+      "c02",
+      "c03",
+      "c04",
+      "c05",
+      "c06",
+      "c07",
+      "c08",
+      "c09",
+      "c10",
+      "c11",
+      "c12",
+      "c13",
+      "c14",
+      "c15",
+      "c16",
+      "c17",
+      "c18",
+      "c19",
+      "c20"
+     ]
+    }
+   },
+   {
+    "name": "a category named twice",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "categories": [
+      "claims",
+      "claims"
+     ]
+    }
+   },
+   {
+    "name": "a category that is an e-mail address",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "categories": [
+      "user@example.com"
+     ]
+    }
+   },
+   {
+    "name": "categories that is not a list",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "categories": "claims"
+    }
+   },
+   {
+    "name": "a plain reference",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "reference": "CN-48213"
+    }
+   },
+   {
+    "name": "an unknown field",
+    "data_use": {
+     "purpose": "p",
+     "basis": "b",
+     "consent": true
+    }
+   },
+   {
+    "name": "a purpose that is a number",
+    "data_use": {
+     "purpose": 7,
+     "basis": "b"
+    }
+   },
+   {
+    "name": "not an object",
+    "data_use": [
+     "p",
+     "b"
+    ]
+   }
+  ]
+ },
+ "hmac_reference": {
+  "accept": [
+   {
+    "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "id": "CN-48213",
+    "reference": "hmac-sha256:4c76562cf1952c6a3c31a39baee63220fbc961257c68fe5ef7b87bdbb9f4b1c8"
+   },
+   {
+    "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "id": "consent/2026/0042",
+    "reference": "hmac-sha256:f9af3edaec58338b2651513b71810f60440dbfb0801d6a70f24fefb992e497c8"
+   },
+   {
+    "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "id": "caf\u00e9-7",
+    "reference": "hmac-sha256:46ffcb7d7167b5f31b7997c3c9070f3265b0a38e1bbd197a31cdf415139ad2ff"
+   },
+   {
+    "key_hex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0dfdedddcdbdad9d8d7d6d5d4d3d2d1d0cfcecdcccbcac9c8c7c6c5c4c3c2c1c0",
+    "id": "CN-48213",
+    "reference": "hmac-sha256:93481370335aac2d9d25718d492b055c802cbe60a027677abb83892fa4981b4d"
+   }
+  ],
+  "refuse": [
+   {
+    "name": "a key shorter than 32 bytes",
+    "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e",
+    "id": "CN-48213"
+   },
+   {
+    "name": "an empty key",
+    "key_hex": "",
+    "id": "CN-48213"
+   },
+   {
+    "name": "an empty identifier",
+    "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "id": ""
+   }
+  ]
+ },
+ "client_field": {
+  "accept": [
+   "",
+   "Claude Code",
+   "2.9.0",
+   "x",
+   "~!@#$%^&*()_+{}|:<>?",
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "a b"
+  ],
+  "refuse": [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   " Claude",
+   "Claude ",
+   " ",
+   "Claude\tCode",
+   "Claude\nCode",
+   "Cl\u00e9",
+   "\u0000",
+   "\u007f",
+   "Claude\u00a0Code"
+  ]
+ }
+}

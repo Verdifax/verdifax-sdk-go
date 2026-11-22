@@ -461,7 +461,10 @@ func (c *Client) GetSignOffHistory(ctx context.Context) ([]byte, error) {
 // An HTTP 409, returned as an *APIError, means the chain moved because
 // another sign-off came first, or the digest is not the result's. It is
 // not retried: read the result and the chain again before deciding to
-// sign again.
+// sign again. While the account is stopped and its stop refuses sign-offs,
+// the 409 is a *SignOffRefusedError carrying the sealed refusal (a
+// signoff.refused event in the feed), checked to keep the signature and
+// nonce this client sent; errors.As still finds its *APIError.
 func (c *Client) SignOff(ctx context.Context, target SignOffTarget, decision string, approverKey SigningKey, opts *SignOffOptions) (*SignOff, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
@@ -511,7 +514,7 @@ func (c *Client) SignOff(ctx context.Context, target SignOffTarget, decision str
 		SignOff *SignOff `json:"signoff"`
 	}
 	if submitErr := c.doRequest(ctx, "POST", base, body, &out); submitErr != nil {
-		return nil, submitErr
+		return nil, signOffRefusal(submitErr, &body)
 	}
 	if out.SignOff == nil {
 		return nil, errors.New("verdifax: the sign-off response has no sign-off record")

@@ -1,0 +1,1665 @@
+{
+ "_comment": "Round 64, features 1 and 4: answers of the board summary and response-time routes, and the round 64 target records, built by the orchestrator's own types and counting code (internal/feedcount over testdata/feedcount_vector.json; internal/artifacts PeriodSummary, SignOffTargetPassed, RunSealed and ReceiptContext). The SDKs fetch and return these documents as sent and never recount them: recounting stays in verdifax-verify. create_answer is POST /account/summaries sealing one (HTTP 201); reused_answer the same summary already sealed for that period over that feed (HTTP 200); list_answer GET /account/summaries; summary GET /account/summaries/{id}; summary_head GET /account/summaries/{id}/head, the feed-head statement the summary counted up to (internal/artifacts FeedHead), also carried as head in create_answer and reused_answer; response_times GET /account/signoffs/response-times with target=900; target_passed the entry of a signoff.target_passed event; run_sealed a run.sealed entry with setup_hash and signoff_target; receipt_context one with response_target. Every SDK reads this file in a test.",
+ "create_answer": {
+  "id": 1,
+  "reused": false,
+  "summary": {
+   "format": "verdifax.period-summary.v1",
+   "account": "account-7",
+   "from": "2026-11-01T00:00:00Z",
+   "to": "2026-11-02T00:00:00Z",
+   "counting_rules": "verdifax.period-summary-counting.v1",
+   "head_sequence": 30,
+   "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+   "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+   "figures": [
+    {
+     "name": "account.changed",
+     "value": 1,
+     "events_digest": "8c1de6fcc5069ec25171f08d5ec35f60e7c7f8dd1020bc47869a462161910bb9"
+    },
+    {
+     "name": "account.changed.by:owner",
+     "value": 1,
+     "events_digest": "8c1de6fcc5069ec25171f08d5ec35f60e7c7f8dd1020bc47869a462161910bb9"
+    },
+    {
+     "name": "account.resumes",
+     "value": 1,
+     "events_digest": "c7440533a29bad87565c05d9811e74a7a6123e3657c4b6f38d13429613ace34f"
+    },
+    {
+     "name": "account.resumes.by:verdifax_admin",
+     "value": 1,
+     "events_digest": "c7440533a29bad87565c05d9811e74a7a6123e3657c4b6f38d13429613ace34f"
+    },
+    {
+     "name": "account.stopped_seconds",
+     "value": 5400,
+     "events_digest": "f3d2c9e9bb4b528651cf6d6ba0042211e585b0fe1bcc6763429880f0fe162543"
+    },
+    {
+     "name": "account.stopped_seconds.by:owner",
+     "value": 3600,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
+     "name": "account.stopped_seconds.by:verdifax_admin",
+     "value": 3600,
+     "events_digest": "f3ac2da5580ac62dc6789bf8642d15ec89393c8f6f22d67269f155c19c447907"
+    },
+    {
+     "name": "account.stops",
+     "value": 2,
+     "events_digest": "5feba14585532ec184cae93893f4d9376edd19de6f92bf9cb28e96fb777fc192"
+    },
+    {
+     "name": "account.stops.by:owner",
+     "value": 1,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
+     "name": "account.stops.by:verdifax_admin",
+     "value": 1,
+     "events_digest": "d2bca62839cf65cbbd85b7a5c80f270feb30e7d05d21fc0264733128c3d4ad49"
+    },
+    {
+     "name": "approvers.registered",
+     "value": 1,
+     "events_digest": "83751c5892a8ce110cfd853a90669d65642fd09f26608eaace5f6de46b16fe54"
+    },
+    {
+     "name": "approvers.registered.by:owner",
+     "value": 1,
+     "events_digest": "83751c5892a8ce110cfd853a90669d65642fd09f26608eaace5f6de46b16fe54"
+    },
+    {
+     "name": "chain.gaps",
+     "value": 1,
+     "events_digest": "6bf283d99a9c12383ea9e3565124126f9bac231a8d36ce98ca60b6a8fa27212d"
+    },
+    {
+     "name": "chain.interrupted",
+     "value": 1,
+     "events_digest": "d8c7490c32ee83c359504462407fc2132caffc44d01d5b8366210506ac5ceef9"
+    },
+    {
+     "name": "events.record_deleted.unplaced",
+     "value": 1,
+     "events_digest": "d8c2cf0b489cd6991ac402306575b3df2734b8922d9929db0de166174a4312b7"
+    },
+    {
+     "name": "keys.created",
+     "value": 1,
+     "events_digest": "39740ed636dccce506dc5de40cb12762ab3989cbadf89b68f96a94806c75c27d"
+    },
+    {
+     "name": "keys.created.by:verdifax_admin",
+     "value": 1,
+     "events_digest": "39740ed636dccce506dc5de40cb12762ab3989cbadf89b68f96a94806c75c27d"
+    },
+    {
+     "name": "policy.changed",
+     "value": 1,
+     "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+    },
+    {
+     "name": "policy.changed.chain:account",
+     "value": 1,
+     "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+    },
+    {
+     "name": "policy.changed.signed",
+     "value": 1,
+     "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+    },
+    {
+     "name": "response_times.decision_in_force.log.longest_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.log.median_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.log.p90_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.reached",
+     "value": 3,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.record.longest_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.record.median_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.record.p90_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.log.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.log.median_seconds",
+     "value": 301,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.log.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.reached",
+     "value": 3,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.record.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.record.median_seconds",
+     "value": 300,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.record.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.log.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.log.median_seconds",
+     "value": 301,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.log.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.reached",
+     "value": 3,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.record.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.record.median_seconds",
+     "value": 300,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.record.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.longer_than_target.signed_after",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "response_times.longer_than_target.unsigned_as_of_head",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "response_times.results",
+     "value": 4,
+     "events_digest": "37f7311ddc622051c75c28bf9d0405de8a19934fa456a7978238edfa83344efd"
+    },
+    {
+     "name": "response_times.unsigned_as_of_head",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "response_times.with_target",
+     "value": 3,
+     "events_digest": "0fd7545861f21d1281ef947ee58e718a1abb674c997070c4755bc555622db8c3"
+    },
+    {
+     "name": "results.decision_in_force.approve",
+     "value": 2,
+     "events_digest": "f99aa3d8207296101745fb44e049f741cc554e6b5d4869e398f144272d1c42e8"
+    },
+    {
+     "name": "results.decision_in_force.reject",
+     "value": 1,
+     "events_digest": "7923ef9aeda397819cdd8f1e37d74dce76d0d26f502a7d34d924c82b8503fe90"
+    },
+    {
+     "name": "review.due",
+     "value": 1,
+     "events_digest": "371ff182feaf95f753e07ae2563b3c7579cfabb74b801d49a6bae77292673330"
+    },
+    {
+     "name": "runs.deleted",
+     "value": 1,
+     "events_digest": "00e19e6e5a3b85b0e59ee524257ff32995ba22757ecc872ab53fecca8684c413"
+    },
+    {
+     "name": "runs.deleted.by:owner",
+     "value": 1,
+     "events_digest": "00e19e6e5a3b85b0e59ee524257ff32995ba22757ecc872ab53fecca8684c413"
+    },
+    {
+     "name": "runs.failed",
+     "value": 1,
+     "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+    },
+    {
+     "name": "runs.failed.class:store_error",
+     "value": 1,
+     "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+    },
+    {
+     "name": "runs.failed.stage:seal",
+     "value": 1,
+     "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+    },
+    {
+     "name": "runs.halted",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.halted.code:ccv_budget_exceeded",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.halted.receipt:ccv_halt_receipt",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.halted.target_sealed",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.published",
+     "value": 1,
+     "events_digest": "24969b91817be3e123282ceb385b2a40b00d16158565733265271c683bf772fc"
+    },
+    {
+     "name": "runs.published.by:owner",
+     "value": 1,
+     "events_digest": "24969b91817be3e123282ceb385b2a40b00d16158565733265271c683bf772fc"
+    },
+    {
+     "name": "runs.refused",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.account_stopped",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.code:account_stopped",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.data_use_declared",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.receipt:deny_receipt",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.target_sealed",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.sealed",
+     "value": 2,
+     "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+    },
+    {
+     "name": "runs.sealed.job_steps",
+     "value": 2,
+     "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+    },
+    {
+     "name": "runs.sealed.signoff_required",
+     "value": 2,
+     "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+    },
+    {
+     "name": "runs.sealed.target_sealed",
+     "value": 1,
+     "events_digest": "7923ef9aeda397819cdd8f1e37d74dce76d0d26f502a7d34d924c82b8503fe90"
+    },
+    {
+     "name": "setup.changed",
+     "value": 1,
+     "events_digest": "ffb8264578a99561652a6dfe60129b11eb50a3650b8ceedc4545b84f02cc99d2"
+    },
+    {
+     "name": "signoff.target_passed",
+     "value": 1,
+     "events_digest": "cf28e50d2d97b2d6a47b49ea24597b14962f47099e4aedb9571e91aca70f4a51"
+    },
+    {
+     "name": "signoff.target_passed.result:receipt",
+     "value": 1,
+     "events_digest": "cf28e50d2d97b2d6a47b49ea24597b14962f47099e4aedb9571e91aca70f4a51"
+    },
+    {
+     "name": "signoffs.made",
+     "value": 5,
+     "events_digest": "2b08c1f6172abde618a93e0d8f86582377879dbfb17481c782b6d41f6d71cf73"
+    },
+    {
+     "name": "signoffs.made.approve",
+     "value": 3,
+     "events_digest": "d438cfc15b83b8574f4a928b2efd39f17a15adb713d2ead3db365832a236175d"
+    },
+    {
+     "name": "signoffs.made.reject",
+     "value": 2,
+     "events_digest": "6d32cd421df4dd46754dd14f426ab465d546d30fb758c833a0936121abd294ba"
+    },
+    {
+     "name": "signoffs.made.target:job",
+     "value": 2,
+     "events_digest": "7bf0e3ba5d2e75eebd448d2d5230786e9403337d89c53b22cf90eac66ed2644b"
+    },
+    {
+     "name": "signoffs.made.target:receipt",
+     "value": 1,
+     "events_digest": "b8085dd93b0bf98db6c23fd64c6b3487c9e60b05bee5fddccac384c7c1be9baa"
+    },
+    {
+     "name": "signoffs.made.target:record",
+     "value": 2,
+     "events_digest": "1e9578363c8a3805bb5f4197863502d949017e26265aef1d7aa7ff18fac1c024"
+    },
+    {
+     "name": "signoffs.refused",
+     "value": 1,
+     "events_digest": "5732f25d9c892b71daeba93a48d8174221e49273f9333c022319e3c20749451c"
+    }
+   ],
+   "stated_at": "2026-11-02T01:00:07.123456789Z",
+   "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+   "anchor": {
+    "kind": "verdifax.receipt_anchor.v3",
+    "receipt_kind": "period_summary",
+    "receipt_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+    "backend": "rekor",
+    "log_entry_id": "3772058606",
+    "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+    "leaf_hash": "",
+    "log_index": 3650154344,
+    "tree_size": 3650154352,
+    "root_hash": "",
+    "inclusion_path": [],
+    "checkpoint": "",
+    "signed_entry_timestamp": "",
+    "integrated_time": 1793581205
+   }
+  },
+  "head": {
+   "format": "verdifax.feed-head.v1",
+   "account": "account-7",
+   "sequence": 30,
+   "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+   "stated_at": "2026-11-02T01:00:00Z",
+   "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+   "anchor": {
+    "kind": "verdifax.receipt_anchor.v3",
+    "receipt_kind": "feed_head",
+    "receipt_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+    "backend": "rekor",
+    "log_entry_id": "3772058590",
+    "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+    "leaf_hash": "",
+    "log_index": 3650154328,
+    "tree_size": 3650154336,
+    "root_hash": "",
+    "inclusion_path": [],
+    "checkpoint": "",
+    "signed_entry_timestamp": "",
+    "integrated_time": 1793581198
+   }
+  }
+ },
+ "list_answer": {
+  "limit": 50,
+  "summaries": [
+   {
+    "from": "2026-11-01T00:00:00Z",
+    "head_sequence": 30,
+    "id": 1,
+    "log_entry_id": "3772058606",
+    "on_public_log": true,
+    "stated_at": "2026-11-02T01:00:07.123456789Z",
+    "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+    "to": "2026-11-02T00:00:00Z"
+   }
+  ]
+ },
+ "receipt_context": {
+  "request": {
+   "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+   "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+   "route_id": "claims",
+   "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "response_target": {
+   "within": 86400,
+   "compare": "first_signoff",
+   "notice": "event"
+  }
+ },
+ "response_times": {
+  "form": "verdifax.response-times.v1",
+  "account": "account-7",
+  "from": "2026-11-01T00:00:00Z",
+  "to": "2026-11-02T00:00:00Z",
+  "counting_rules": "verdifax.period-summary-counting.v1",
+  "request_target": 900,
+  "head_sequence": 30,
+  "head": {
+   "format": "verdifax.feed-head.v1",
+   "account": "account-7",
+   "sequence": 30,
+   "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+   "stated_at": "2026-11-02T01:00:00Z",
+   "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57"
+  },
+  "results": [
+   {
+    "run_id": 10,
+    "result_kind": "record",
+    "event_kind": "run.sealed",
+    "sequence": 4,
+    "recorded_at": "2026-11-01T01:00:00Z",
+    "logged_at": "2026-11-01T01:00:01Z",
+    "signoff_required": true,
+    "target": {
+     "within": 600,
+     "compare": "first_signoff",
+     "notice": "both",
+     "source": "sealed"
+    },
+    "first_signoff": {
+     "sequence": 6,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T01:05:00Z",
+     "logged_at": "2026-11-01T01:05:02Z",
+     "log_seconds": 301,
+     "record_seconds": 300
+    },
+    "first_approval": {
+     "sequence": 6,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T01:05:00Z",
+     "logged_at": "2026-11-01T01:05:02Z",
+     "log_seconds": 301,
+     "record_seconds": 300
+    },
+    "decision_in_force": {
+     "sequence": 7,
+     "decision": "reject",
+     "recorded_at": "2026-11-01T01:20:00Z",
+     "logged_at": "2026-11-01T01:20:01Z",
+     "log_seconds": 1200,
+     "record_seconds": 1200
+    },
+    "compared": "first_signoff",
+    "compared_on": "public_log",
+    "compared_seconds": 301,
+    "standing": "within_target"
+   },
+   {
+    "run_id": 11,
+    "result_kind": "receipt",
+    "event_kind": "run.refused",
+    "sequence": 5,
+    "recorded_at": "2026-11-01T01:10:00+01:00",
+    "logged_at": "2026-11-01T00:10:05Z",
+    "target": {
+     "within": 300,
+     "compare": "first_approval",
+     "notice": "event",
+     "source": "sealed"
+    },
+    "compared": "first_approval",
+    "compared_on": "public_log",
+    "compared_seconds": 89395,
+    "standing": "unsigned_longer_than_target_as_of_head"
+   },
+   {
+    "run_id": 12,
+    "result_kind": "receipt",
+    "event_kind": "run.halted",
+    "sequence": 8,
+    "recorded_at": "2026-11-01T02:00:00Z",
+    "logged_at": "2026-11-01T02:00:00Z",
+    "target": {
+     "within": 60,
+     "compare": "first_signoff",
+     "notice": "head",
+     "source": "sealed"
+    },
+    "first_signoff": {
+     "sequence": 9,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T02:10:00Z",
+     "logged_at": "2026-11-01T02:10:00Z",
+     "log_seconds": 600,
+     "record_seconds": 600
+    },
+    "first_approval": {
+     "sequence": 9,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T02:10:00Z",
+     "logged_at": "2026-11-01T02:10:00Z",
+     "log_seconds": 600,
+     "record_seconds": 600
+    },
+    "decision_in_force": {
+     "sequence": 9,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T02:10:00Z",
+     "logged_at": "2026-11-01T02:10:00Z",
+     "log_seconds": 600,
+     "record_seconds": 600
+    },
+    "compared": "first_signoff",
+    "compared_on": "public_log",
+    "compared_seconds": 600,
+    "standing": "longer_than_target_signed_after"
+   },
+   {
+    "run_id": 20,
+    "result_kind": "record",
+    "event_kind": "run.sealed",
+    "sequence": 27,
+    "recorded_at": "2026-11-01T10:00:00Z",
+    "logged_at": "2026-11-01T10:00:00Z",
+    "signoff_required": true,
+    "target": {
+     "within": 900,
+     "compare": "first_signoff",
+     "source": "request"
+    },
+    "first_signoff": {
+     "sequence": 28,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T10:01:00Z",
+     "logged_at": "2026-11-01T10:01:00Z",
+     "log_seconds": 60,
+     "record_seconds": 60
+    },
+    "first_approval": {
+     "sequence": 28,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T10:01:00Z",
+     "logged_at": "2026-11-01T10:01:00Z",
+     "log_seconds": 60,
+     "record_seconds": 60
+    },
+    "decision_in_force": {
+     "sequence": 28,
+     "decision": "approve",
+     "recorded_at": "2026-11-01T10:01:00Z",
+     "logged_at": "2026-11-01T10:01:00Z",
+     "log_seconds": 60,
+     "record_seconds": 60
+    },
+    "compared": "first_signoff",
+    "compared_on": "public_log",
+    "compared_seconds": 60,
+    "standing": "within_target"
+   }
+  ],
+  "aggregates": {
+   "results": 4,
+   "results_deleted": 0,
+   "with_target": 4,
+   "first_signoff": {
+    "reached": 3,
+    "public_log": {
+     "count": 3,
+     "median_seconds": 301,
+     "p90_seconds": 600,
+     "longest_seconds": 600,
+     "longest_run_id": 12
+    },
+    "record_time": {
+     "count": 3,
+     "median_seconds": 300,
+     "p90_seconds": 600,
+     "longest_seconds": 600,
+     "longest_run_id": 12
+    }
+   },
+   "first_approval": {
+    "reached": 3,
+    "public_log": {
+     "count": 3,
+     "median_seconds": 301,
+     "p90_seconds": 600,
+     "longest_seconds": 600,
+     "longest_run_id": 12
+    },
+    "record_time": {
+     "count": 3,
+     "median_seconds": 300,
+     "p90_seconds": 600,
+     "longest_seconds": 600,
+     "longest_run_id": 12
+    }
+   },
+   "decision_in_force": {
+    "reached": 3,
+    "public_log": {
+     "count": 3,
+     "median_seconds": 600,
+     "p90_seconds": 1200,
+     "longest_seconds": 1200,
+     "longest_run_id": 10
+    },
+    "record_time": {
+     "count": 3,
+     "median_seconds": 600,
+     "p90_seconds": 1200,
+     "longest_seconds": 1200,
+     "longest_run_id": 10
+    }
+   },
+   "unsigned_as_of_head": 1,
+   "longer_than_target_signed_after": 1,
+   "longer_than_target_unsigned_as_of_head": 1
+  }
+ },
+ "reused_answer": {
+  "id": 1,
+  "reused": true,
+  "summary": {
+   "format": "verdifax.period-summary.v1",
+   "account": "account-7",
+   "from": "2026-11-01T00:00:00Z",
+   "to": "2026-11-02T00:00:00Z",
+   "counting_rules": "verdifax.period-summary-counting.v1",
+   "head_sequence": 30,
+   "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+   "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+   "figures": [
+    {
+     "name": "account.changed",
+     "value": 1,
+     "events_digest": "8c1de6fcc5069ec25171f08d5ec35f60e7c7f8dd1020bc47869a462161910bb9"
+    },
+    {
+     "name": "account.changed.by:owner",
+     "value": 1,
+     "events_digest": "8c1de6fcc5069ec25171f08d5ec35f60e7c7f8dd1020bc47869a462161910bb9"
+    },
+    {
+     "name": "account.resumes",
+     "value": 1,
+     "events_digest": "c7440533a29bad87565c05d9811e74a7a6123e3657c4b6f38d13429613ace34f"
+    },
+    {
+     "name": "account.resumes.by:verdifax_admin",
+     "value": 1,
+     "events_digest": "c7440533a29bad87565c05d9811e74a7a6123e3657c4b6f38d13429613ace34f"
+    },
+    {
+     "name": "account.stopped_seconds",
+     "value": 5400,
+     "events_digest": "f3d2c9e9bb4b528651cf6d6ba0042211e585b0fe1bcc6763429880f0fe162543"
+    },
+    {
+     "name": "account.stopped_seconds.by:owner",
+     "value": 3600,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
+     "name": "account.stopped_seconds.by:verdifax_admin",
+     "value": 3600,
+     "events_digest": "f3ac2da5580ac62dc6789bf8642d15ec89393c8f6f22d67269f155c19c447907"
+    },
+    {
+     "name": "account.stops",
+     "value": 2,
+     "events_digest": "5feba14585532ec184cae93893f4d9376edd19de6f92bf9cb28e96fb777fc192"
+    },
+    {
+     "name": "account.stops.by:owner",
+     "value": 1,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
+     "name": "account.stops.by:verdifax_admin",
+     "value": 1,
+     "events_digest": "d2bca62839cf65cbbd85b7a5c80f270feb30e7d05d21fc0264733128c3d4ad49"
+    },
+    {
+     "name": "approvers.registered",
+     "value": 1,
+     "events_digest": "83751c5892a8ce110cfd853a90669d65642fd09f26608eaace5f6de46b16fe54"
+    },
+    {
+     "name": "approvers.registered.by:owner",
+     "value": 1,
+     "events_digest": "83751c5892a8ce110cfd853a90669d65642fd09f26608eaace5f6de46b16fe54"
+    },
+    {
+     "name": "chain.gaps",
+     "value": 1,
+     "events_digest": "6bf283d99a9c12383ea9e3565124126f9bac231a8d36ce98ca60b6a8fa27212d"
+    },
+    {
+     "name": "chain.interrupted",
+     "value": 1,
+     "events_digest": "d8c7490c32ee83c359504462407fc2132caffc44d01d5b8366210506ac5ceef9"
+    },
+    {
+     "name": "events.record_deleted.unplaced",
+     "value": 1,
+     "events_digest": "d8c2cf0b489cd6991ac402306575b3df2734b8922d9929db0de166174a4312b7"
+    },
+    {
+     "name": "keys.created",
+     "value": 1,
+     "events_digest": "39740ed636dccce506dc5de40cb12762ab3989cbadf89b68f96a94806c75c27d"
+    },
+    {
+     "name": "keys.created.by:verdifax_admin",
+     "value": 1,
+     "events_digest": "39740ed636dccce506dc5de40cb12762ab3989cbadf89b68f96a94806c75c27d"
+    },
+    {
+     "name": "policy.changed",
+     "value": 1,
+     "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+    },
+    {
+     "name": "policy.changed.chain:account",
+     "value": 1,
+     "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+    },
+    {
+     "name": "policy.changed.signed",
+     "value": 1,
+     "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+    },
+    {
+     "name": "response_times.decision_in_force.log.longest_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.log.median_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.log.p90_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.reached",
+     "value": 3,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.record.longest_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.record.median_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.decision_in_force.record.p90_seconds",
+     "value": 1200,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.log.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.log.median_seconds",
+     "value": 301,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.log.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.reached",
+     "value": 3,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.record.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.record.median_seconds",
+     "value": 300,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_approval.record.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.log.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.log.median_seconds",
+     "value": 301,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.log.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.reached",
+     "value": 3,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.record.longest_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.record.median_seconds",
+     "value": 300,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.first_signoff.record.p90_seconds",
+     "value": 600,
+     "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+    },
+    {
+     "name": "response_times.longer_than_target.signed_after",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "response_times.longer_than_target.unsigned_as_of_head",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "response_times.results",
+     "value": 4,
+     "events_digest": "37f7311ddc622051c75c28bf9d0405de8a19934fa456a7978238edfa83344efd"
+    },
+    {
+     "name": "response_times.unsigned_as_of_head",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "response_times.with_target",
+     "value": 3,
+     "events_digest": "0fd7545861f21d1281ef947ee58e718a1abb674c997070c4755bc555622db8c3"
+    },
+    {
+     "name": "results.decision_in_force.approve",
+     "value": 2,
+     "events_digest": "f99aa3d8207296101745fb44e049f741cc554e6b5d4869e398f144272d1c42e8"
+    },
+    {
+     "name": "results.decision_in_force.reject",
+     "value": 1,
+     "events_digest": "7923ef9aeda397819cdd8f1e37d74dce76d0d26f502a7d34d924c82b8503fe90"
+    },
+    {
+     "name": "review.due",
+     "value": 1,
+     "events_digest": "371ff182feaf95f753e07ae2563b3c7579cfabb74b801d49a6bae77292673330"
+    },
+    {
+     "name": "runs.deleted",
+     "value": 1,
+     "events_digest": "00e19e6e5a3b85b0e59ee524257ff32995ba22757ecc872ab53fecca8684c413"
+    },
+    {
+     "name": "runs.deleted.by:owner",
+     "value": 1,
+     "events_digest": "00e19e6e5a3b85b0e59ee524257ff32995ba22757ecc872ab53fecca8684c413"
+    },
+    {
+     "name": "runs.failed",
+     "value": 1,
+     "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+    },
+    {
+     "name": "runs.failed.class:store_error",
+     "value": 1,
+     "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+    },
+    {
+     "name": "runs.failed.stage:seal",
+     "value": 1,
+     "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+    },
+    {
+     "name": "runs.halted",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.halted.code:ccv_budget_exceeded",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.halted.receipt:ccv_halt_receipt",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.halted.target_sealed",
+     "value": 1,
+     "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+    },
+    {
+     "name": "runs.published",
+     "value": 1,
+     "events_digest": "24969b91817be3e123282ceb385b2a40b00d16158565733265271c683bf772fc"
+    },
+    {
+     "name": "runs.published.by:owner",
+     "value": 1,
+     "events_digest": "24969b91817be3e123282ceb385b2a40b00d16158565733265271c683bf772fc"
+    },
+    {
+     "name": "runs.refused",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.account_stopped",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.code:account_stopped",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.data_use_declared",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.receipt:deny_receipt",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.refused.target_sealed",
+     "value": 1,
+     "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+    },
+    {
+     "name": "runs.sealed",
+     "value": 2,
+     "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+    },
+    {
+     "name": "runs.sealed.job_steps",
+     "value": 2,
+     "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+    },
+    {
+     "name": "runs.sealed.signoff_required",
+     "value": 2,
+     "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+    },
+    {
+     "name": "runs.sealed.target_sealed",
+     "value": 1,
+     "events_digest": "7923ef9aeda397819cdd8f1e37d74dce76d0d26f502a7d34d924c82b8503fe90"
+    },
+    {
+     "name": "setup.changed",
+     "value": 1,
+     "events_digest": "ffb8264578a99561652a6dfe60129b11eb50a3650b8ceedc4545b84f02cc99d2"
+    },
+    {
+     "name": "signoff.target_passed",
+     "value": 1,
+     "events_digest": "cf28e50d2d97b2d6a47b49ea24597b14962f47099e4aedb9571e91aca70f4a51"
+    },
+    {
+     "name": "signoff.target_passed.result:receipt",
+     "value": 1,
+     "events_digest": "cf28e50d2d97b2d6a47b49ea24597b14962f47099e4aedb9571e91aca70f4a51"
+    },
+    {
+     "name": "signoffs.made",
+     "value": 5,
+     "events_digest": "2b08c1f6172abde618a93e0d8f86582377879dbfb17481c782b6d41f6d71cf73"
+    },
+    {
+     "name": "signoffs.made.approve",
+     "value": 3,
+     "events_digest": "d438cfc15b83b8574f4a928b2efd39f17a15adb713d2ead3db365832a236175d"
+    },
+    {
+     "name": "signoffs.made.reject",
+     "value": 2,
+     "events_digest": "6d32cd421df4dd46754dd14f426ab465d546d30fb758c833a0936121abd294ba"
+    },
+    {
+     "name": "signoffs.made.target:job",
+     "value": 2,
+     "events_digest": "7bf0e3ba5d2e75eebd448d2d5230786e9403337d89c53b22cf90eac66ed2644b"
+    },
+    {
+     "name": "signoffs.made.target:receipt",
+     "value": 1,
+     "events_digest": "b8085dd93b0bf98db6c23fd64c6b3487c9e60b05bee5fddccac384c7c1be9baa"
+    },
+    {
+     "name": "signoffs.made.target:record",
+     "value": 2,
+     "events_digest": "1e9578363c8a3805bb5f4197863502d949017e26265aef1d7aa7ff18fac1c024"
+    },
+    {
+     "name": "signoffs.refused",
+     "value": 1,
+     "events_digest": "5732f25d9c892b71daeba93a48d8174221e49273f9333c022319e3c20749451c"
+    }
+   ],
+   "stated_at": "2026-11-02T01:00:07.123456789Z",
+   "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+   "anchor": {
+    "kind": "verdifax.receipt_anchor.v3",
+    "receipt_kind": "period_summary",
+    "receipt_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+    "backend": "rekor",
+    "log_entry_id": "3772058606",
+    "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+    "leaf_hash": "",
+    "log_index": 3650154344,
+    "tree_size": 3650154352,
+    "root_hash": "",
+    "inclusion_path": [],
+    "checkpoint": "",
+    "signed_entry_timestamp": "",
+    "integrated_time": 1793581205
+   }
+  },
+  "head": {
+   "format": "verdifax.feed-head.v1",
+   "account": "account-7",
+   "sequence": 30,
+   "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+   "stated_at": "2026-11-02T01:00:00Z",
+   "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+   "anchor": {
+    "kind": "verdifax.receipt_anchor.v3",
+    "receipt_kind": "feed_head",
+    "receipt_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+    "backend": "rekor",
+    "log_entry_id": "3772058590",
+    "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+    "leaf_hash": "",
+    "log_index": 3650154328,
+    "tree_size": 3650154336,
+    "root_hash": "",
+    "inclusion_path": [],
+    "checkpoint": "",
+    "signed_entry_timestamp": "",
+    "integrated_time": 1793581198
+   }
+  }
+ },
+ "run_sealed": {
+  "format": "verdifax.run-sealed.v1",
+  "run_id": 10,
+  "record_hash": "0000000000000000000000000000000000000000000000000000000000000068",
+  "sealed_at": "2026-11-01T01:00:00Z",
+  "signal": {
+   "signal_account": "account-7",
+   "signal_sequence": 4,
+   "signal_previous_hash": "0000000000000000000000000000000000000000000000000000000000000003"
+  },
+  "signoff_required": true,
+  "setup_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+  "signoff_target": {
+   "within": 600,
+   "compare": "first_signoff",
+   "notice": "both"
+  },
+  "run_sealed_hash": "24fa7a818c9ba0d3ee6eae191fde52c51d5f096f82be50b1e723aeb69f2893f0"
+ },
+ "summary": {
+  "format": "verdifax.period-summary.v1",
+  "account": "account-7",
+  "from": "2026-11-01T00:00:00Z",
+  "to": "2026-11-02T00:00:00Z",
+  "counting_rules": "verdifax.period-summary-counting.v1",
+  "head_sequence": 30,
+  "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+  "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+  "figures": [
+   {
+    "name": "account.changed",
+    "value": 1,
+    "events_digest": "8c1de6fcc5069ec25171f08d5ec35f60e7c7f8dd1020bc47869a462161910bb9"
+   },
+   {
+    "name": "account.changed.by:owner",
+    "value": 1,
+    "events_digest": "8c1de6fcc5069ec25171f08d5ec35f60e7c7f8dd1020bc47869a462161910bb9"
+   },
+   {
+    "name": "account.resumes",
+    "value": 1,
+    "events_digest": "c7440533a29bad87565c05d9811e74a7a6123e3657c4b6f38d13429613ace34f"
+   },
+   {
+    "name": "account.resumes.by:verdifax_admin",
+    "value": 1,
+    "events_digest": "c7440533a29bad87565c05d9811e74a7a6123e3657c4b6f38d13429613ace34f"
+   },
+   {
+    "name": "account.stopped_seconds",
+    "value": 5400,
+    "events_digest": "f3d2c9e9bb4b528651cf6d6ba0042211e585b0fe1bcc6763429880f0fe162543"
+   },
+   {
+    "name": "account.stopped_seconds.by:owner",
+    "value": 3600,
+    "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+   },
+   {
+    "name": "account.stopped_seconds.by:verdifax_admin",
+    "value": 3600,
+    "events_digest": "f3ac2da5580ac62dc6789bf8642d15ec89393c8f6f22d67269f155c19c447907"
+   },
+   {
+    "name": "account.stops",
+    "value": 2,
+    "events_digest": "5feba14585532ec184cae93893f4d9376edd19de6f92bf9cb28e96fb777fc192"
+   },
+   {
+    "name": "account.stops.by:owner",
+    "value": 1,
+    "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+   },
+   {
+    "name": "account.stops.by:verdifax_admin",
+    "value": 1,
+    "events_digest": "d2bca62839cf65cbbd85b7a5c80f270feb30e7d05d21fc0264733128c3d4ad49"
+   },
+   {
+    "name": "approvers.registered",
+    "value": 1,
+    "events_digest": "83751c5892a8ce110cfd853a90669d65642fd09f26608eaace5f6de46b16fe54"
+   },
+   {
+    "name": "approvers.registered.by:owner",
+    "value": 1,
+    "events_digest": "83751c5892a8ce110cfd853a90669d65642fd09f26608eaace5f6de46b16fe54"
+   },
+   {
+    "name": "chain.gaps",
+    "value": 1,
+    "events_digest": "6bf283d99a9c12383ea9e3565124126f9bac231a8d36ce98ca60b6a8fa27212d"
+   },
+   {
+    "name": "chain.interrupted",
+    "value": 1,
+    "events_digest": "d8c7490c32ee83c359504462407fc2132caffc44d01d5b8366210506ac5ceef9"
+   },
+   {
+    "name": "events.record_deleted.unplaced",
+    "value": 1,
+    "events_digest": "d8c2cf0b489cd6991ac402306575b3df2734b8922d9929db0de166174a4312b7"
+   },
+   {
+    "name": "keys.created",
+    "value": 1,
+    "events_digest": "39740ed636dccce506dc5de40cb12762ab3989cbadf89b68f96a94806c75c27d"
+   },
+   {
+    "name": "keys.created.by:verdifax_admin",
+    "value": 1,
+    "events_digest": "39740ed636dccce506dc5de40cb12762ab3989cbadf89b68f96a94806c75c27d"
+   },
+   {
+    "name": "policy.changed",
+    "value": 1,
+    "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+   },
+   {
+    "name": "policy.changed.chain:account",
+    "value": 1,
+    "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+   },
+   {
+    "name": "policy.changed.signed",
+    "value": 1,
+    "events_digest": "21543cd75488ab7596f8cf4b8452c1bb236f75559429451c163e08238be1e18a"
+   },
+   {
+    "name": "response_times.decision_in_force.log.longest_seconds",
+    "value": 1200,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.decision_in_force.log.median_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.decision_in_force.log.p90_seconds",
+    "value": 1200,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.decision_in_force.reached",
+    "value": 3,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.decision_in_force.record.longest_seconds",
+    "value": 1200,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.decision_in_force.record.median_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.decision_in_force.record.p90_seconds",
+    "value": 1200,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.log.longest_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.log.median_seconds",
+    "value": 301,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.log.p90_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.reached",
+    "value": 3,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.record.longest_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.record.median_seconds",
+    "value": 300,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_approval.record.p90_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.log.longest_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.log.median_seconds",
+    "value": 301,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.log.p90_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.reached",
+    "value": 3,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.record.longest_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.record.median_seconds",
+    "value": 300,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.first_signoff.record.p90_seconds",
+    "value": 600,
+    "events_digest": "fef8ed1b2bd1c3763fef79f8d5a4821080316c42c16904da08e1b47c2bdd6d6a"
+   },
+   {
+    "name": "response_times.longer_than_target.signed_after",
+    "value": 1,
+    "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+   },
+   {
+    "name": "response_times.longer_than_target.unsigned_as_of_head",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "response_times.results",
+    "value": 4,
+    "events_digest": "37f7311ddc622051c75c28bf9d0405de8a19934fa456a7978238edfa83344efd"
+   },
+   {
+    "name": "response_times.unsigned_as_of_head",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "response_times.with_target",
+    "value": 3,
+    "events_digest": "0fd7545861f21d1281ef947ee58e718a1abb674c997070c4755bc555622db8c3"
+   },
+   {
+    "name": "results.decision_in_force.approve",
+    "value": 2,
+    "events_digest": "f99aa3d8207296101745fb44e049f741cc554e6b5d4869e398f144272d1c42e8"
+   },
+   {
+    "name": "results.decision_in_force.reject",
+    "value": 1,
+    "events_digest": "7923ef9aeda397819cdd8f1e37d74dce76d0d26f502a7d34d924c82b8503fe90"
+   },
+   {
+    "name": "review.due",
+    "value": 1,
+    "events_digest": "371ff182feaf95f753e07ae2563b3c7579cfabb74b801d49a6bae77292673330"
+   },
+   {
+    "name": "runs.deleted",
+    "value": 1,
+    "events_digest": "00e19e6e5a3b85b0e59ee524257ff32995ba22757ecc872ab53fecca8684c413"
+   },
+   {
+    "name": "runs.deleted.by:owner",
+    "value": 1,
+    "events_digest": "00e19e6e5a3b85b0e59ee524257ff32995ba22757ecc872ab53fecca8684c413"
+   },
+   {
+    "name": "runs.failed",
+    "value": 1,
+    "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+   },
+   {
+    "name": "runs.failed.class:store_error",
+    "value": 1,
+    "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+   },
+   {
+    "name": "runs.failed.stage:seal",
+    "value": 1,
+    "events_digest": "8ece367141e01360b420ab0eee7066bf633f11483e6107945ddca88611487b1c"
+   },
+   {
+    "name": "runs.halted",
+    "value": 1,
+    "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+   },
+   {
+    "name": "runs.halted.code:ccv_budget_exceeded",
+    "value": 1,
+    "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+   },
+   {
+    "name": "runs.halted.receipt:ccv_halt_receipt",
+    "value": 1,
+    "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+   },
+   {
+    "name": "runs.halted.target_sealed",
+    "value": 1,
+    "events_digest": "b6ef06666c07eb763b0b537b79e7bdb203567b268eb3c1abb31ea55904944473"
+   },
+   {
+    "name": "runs.published",
+    "value": 1,
+    "events_digest": "24969b91817be3e123282ceb385b2a40b00d16158565733265271c683bf772fc"
+   },
+   {
+    "name": "runs.published.by:owner",
+    "value": 1,
+    "events_digest": "24969b91817be3e123282ceb385b2a40b00d16158565733265271c683bf772fc"
+   },
+   {
+    "name": "runs.refused",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "runs.refused.account_stopped",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "runs.refused.code:account_stopped",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "runs.refused.data_use_declared",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "runs.refused.receipt:deny_receipt",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "runs.refused.target_sealed",
+    "value": 1,
+    "events_digest": "092a3e0865817a73a5fe6b9fd05ade6593eff14f323f1cca23979f1950528963"
+   },
+   {
+    "name": "runs.sealed",
+    "value": 2,
+    "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+   },
+   {
+    "name": "runs.sealed.job_steps",
+    "value": 2,
+    "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+   },
+   {
+    "name": "runs.sealed.signoff_required",
+    "value": 2,
+    "events_digest": "0673a22380103f8ff1286cc74e6b40a3043bc62d70e4b0e058504c06a59d218b"
+   },
+   {
+    "name": "runs.sealed.target_sealed",
+    "value": 1,
+    "events_digest": "7923ef9aeda397819cdd8f1e37d74dce76d0d26f502a7d34d924c82b8503fe90"
+   },
+   {
+    "name": "setup.changed",
+    "value": 1,
+    "events_digest": "ffb8264578a99561652a6dfe60129b11eb50a3650b8ceedc4545b84f02cc99d2"
+   },
+   {
+    "name": "signoff.target_passed",
+    "value": 1,
+    "events_digest": "cf28e50d2d97b2d6a47b49ea24597b14962f47099e4aedb9571e91aca70f4a51"
+   },
+   {
+    "name": "signoff.target_passed.result:receipt",
+    "value": 1,
+    "events_digest": "cf28e50d2d97b2d6a47b49ea24597b14962f47099e4aedb9571e91aca70f4a51"
+   },
+   {
+    "name": "signoffs.made",
+    "value": 5,
+    "events_digest": "2b08c1f6172abde618a93e0d8f86582377879dbfb17481c782b6d41f6d71cf73"
+   },
+   {
+    "name": "signoffs.made.approve",
+    "value": 3,
+    "events_digest": "d438cfc15b83b8574f4a928b2efd39f17a15adb713d2ead3db365832a236175d"
+   },
+   {
+    "name": "signoffs.made.reject",
+    "value": 2,
+    "events_digest": "6d32cd421df4dd46754dd14f426ab465d546d30fb758c833a0936121abd294ba"
+   },
+   {
+    "name": "signoffs.made.target:job",
+    "value": 2,
+    "events_digest": "7bf0e3ba5d2e75eebd448d2d5230786e9403337d89c53b22cf90eac66ed2644b"
+   },
+   {
+    "name": "signoffs.made.target:receipt",
+    "value": 1,
+    "events_digest": "b8085dd93b0bf98db6c23fd64c6b3487c9e60b05bee5fddccac384c7c1be9baa"
+   },
+   {
+    "name": "signoffs.made.target:record",
+    "value": 2,
+    "events_digest": "1e9578363c8a3805bb5f4197863502d949017e26265aef1d7aa7ff18fac1c024"
+   },
+   {
+    "name": "signoffs.refused",
+    "value": 1,
+    "events_digest": "5732f25d9c892b71daeba93a48d8174221e49273f9333c022319e3c20749451c"
+   }
+  ],
+  "stated_at": "2026-11-02T01:00:07.123456789Z",
+  "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+  "anchor": {
+   "kind": "verdifax.receipt_anchor.v3",
+   "receipt_kind": "period_summary",
+   "receipt_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+   "backend": "rekor",
+   "log_entry_id": "3772058606",
+   "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+   "leaf_hash": "",
+   "log_index": 3650154344,
+   "tree_size": 3650154352,
+   "root_hash": "",
+   "inclusion_path": [],
+   "checkpoint": "",
+   "signed_entry_timestamp": "",
+   "integrated_time": 1793581205
+  }
+ },
+ "target_passed": {
+  "format": "verdifax.signoff-target-passed.v1",
+  "result_kind": "record",
+  "run_id": 10,
+  "result_sequence": 4,
+  "result_hash": "0000000000000000000000000000000000000000000000000000000000000068",
+  "source": "signoff.within",
+  "within": 600,
+  "compare": "first_signoff",
+  "notice": "both",
+  "start_basis": "public_log",
+  "start": "2026-11-01T01:00:01Z",
+  "deadline": "2026-11-01T01:10:01Z",
+  "statement": "no sign-off of the kind this target compares was on the public log by the deadline",
+  "stated_at": "2026-11-01T01:15:00.5Z",
+  "signal": {
+   "signal_account": "account-7",
+   "signal_sequence": 9,
+   "signal_previous_hash": "0000000000000000000000000000000000000000000000000000000000000008"
+  },
+  "target_passed_hash": "96cdbba1f8a54a52b5ec73ab42fa1f3a416e8680cef6c3213eb2b4a4f00f7e43"
+ },
+ "summary_head": {
+  "format": "verdifax.feed-head.v1",
+  "account": "account-7",
+  "sequence": 30,
+  "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
+  "stated_at": "2026-11-02T01:00:00Z",
+  "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+  "anchor": {
+   "kind": "verdifax.receipt_anchor.v3",
+   "receipt_kind": "feed_head",
+   "receipt_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
+   "backend": "rekor",
+   "log_entry_id": "3772058590",
+   "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+   "leaf_hash": "",
+   "log_index": 3650154328,
+   "tree_size": 3650154336,
+   "root_hash": "",
+   "inclusion_path": [],
+   "checkpoint": "",
+   "signed_entry_timestamp": "",
+   "integrated_time": 1793581198
+  }
+ }
+}

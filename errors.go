@@ -42,6 +42,10 @@ type APIError struct {
 	// AivpTraceText is the text the AI review checked, on a run its review
 	// halted: Verdifax returns it once, and the halt receipt seals its hash.
 	AivpTraceText string
+
+	// body is the response body, for an answer a method reads further,
+	// such as a sign-off refused during a stop (SignOffRefusedError).
+	body string
 }
 
 func (e *APIError) Error() string {

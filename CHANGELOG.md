@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.17.0
+
+Round 64: account stop, data-use declarations, a member key's tool allowlist, the new feed kinds, the board summary, the response-time report and the rule in force. Every addition is new; nothing that worked in 1.16.0 changes. Records using them need `verdifax-verify` v0.38.0, and the server accepts them only while its round 64 release setting is on.
+
+- `PolicyContext.DataUse`, a `DataUse` (`Purpose`, `Basis`, up to 20 `Categories`, optional `Reference`), is your declaration of the data use the decision rests on, in your own codes. `ValidateDataUse` applies the server's checks, and every run path refuses a declaration the server would refuse before sending. `HMACSHA256Reference(key, id)` computes the optional reference on your own machine, `hmac-sha256:` and the HMAC-SHA256 of the identifier under a key of at least 32 bytes, so the identifier itself is never sent. Verdifax seals the declaration as made and does not check it.
+- `AttestedContext` may carry `client_name` and `client_version`, the AI assistant's own declared name and version, each at most 128 bytes of printable ASCII with no leading or trailing space, checked before sending; sealed as declared, not verified.
+- New signal kinds: `SignalAccountStopped`, `SignalAccountResumed`, `SignalSetupChanged`, `SignalReviewDue`, `SignalSignOffTargetPassed` and `SignalSignOffRefused`; a webhook may name them. New record types `AccountStopRecord`, `SetupChangeRecord` (with `SetupFacts`, `DeclaredSetup`, `AttestedSetup`), `PolicyReviewDueRecord` and `SignOffRefusalRecord`, each keeping the exact bytes the server sent. `PendingSignOffs` passes over the new kinds, and a refused sign-off never counts as an approval. A feed with a kind the SDK does not know still reads.
+- `StopAccount`, `ResumeAccount` and `GetAccountStop` (owner key), `AdminStopAccount` and `AdminResumeAccount` (admin key): the one-call account stop. A stop is signed with the owner key's request key over `AccountStopSubject` unless `StopAccountOptions.Unsigned` is set, which a member key granted `account_stop` uses; a resume is always signed and names the stop it lifts. Each checks the sealed `AccountStopRecord` in the answer. `AccountSettingVerdifaxStop` (`verdifax-stop`) is the owner's third setting: while blocked, Verdifax cannot stop the account.
+- `SignOff` returns a `*SignOffRefusedError` (its `Refusal` the sealed `SignOffRefusalRecord`, checked against the sign-off sent; `errors.As` still finds its `*APIError`) when the account's stop refuses sign-offs.
+- `CreateAccountKeyRequest.AllowedTools` grants a member key a tool allowlist, checked before sending and checked sorted in the answer; `AccountKey.AllowedTools` (a pointer, so `AccountKey` stays comparable) shows it. `GetAllowedTools` reads a key's own allowlist from the `X-Verdifax-Allowed-Tools` header of `GET /stats`.
+- The shared vectors `testdata/sdk-data-use-vector.json` and `testdata/sdk-account-stop-vector.json` fix these for all four SDKs, and tests here read them.
+- `CreateSummary`, `ListSummaries`, `GetSummary` and `DownloadSummaryReport` (owner key): the board summary, a `PeriodSummary` (`verdifax.period-summary.v1`) sealed beside the feed, its list, and its PDF. `GetResponseTimes` with `ResponseTimesOptions{Target, Pack}` (owner key) returns the `ResponseTimesReport` (`verdifax.response-times.v1`). Each is returned as the server sent it, keeping its exact bytes, and checked to be the document named (format or form, and a summary's hash); the PDF is checked to be one. The SDK never recounts them: `verdifax-verify` does.
+- `SignOffTargetPassedRecord` (`verdifax.signoff-target-passed.v1`) types a `signoff.target_passed` event's entry, and `RunSealedRecord` a `run.sealed` entry, with `SetupHash` and `SignOffTarget`, a `SealedTarget`, which a receipt context also carries as `response_target`.
+- `RuleInForce(document, policyHistory)` names the policy change each decision in a record or receipt was made under, needing the policy history only for a refusal for missing fields that names none. The shared vectors `testdata/sdk-board-summary-vector.json` and `testdata/sdk-rule-in-force-vector.json` fix these for all four SDKs, and tests here read them.
+- The user agent is `verdifax-sdk-go/1.17.0`.
+
 ## 1.16.0
 
 Webhook changes signed by the owner and sealed in the feed.

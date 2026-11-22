@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 const (
@@ -84,6 +85,11 @@ type AccountKey struct {
 	RunCount   int64  `json:"run_count"`
 	Revoked    bool   `json:"revoked"`
 	ExpiresAt  string `json:"expires_at,omitempty"`
+
+	// AllowedTools is a member key's tool allowlist, sorted, when its owner
+	// granted one; nil otherwise. It is a pointer so AccountKey stays
+	// comparable with ==, as before.
+	AllowedTools *[]string `json:"allowed_tools,omitempty"`
 }
 
 // AccountKeyList is the body of GET /account/keys: every key in the
@@ -101,6 +107,17 @@ type CreateAccountKeyRequest struct {
 	// ExpiresAt is optional: RFC 3339, or YYYY-MM-DD for the end of that
 	// day in UTC.
 	ExpiresAt string `json:"expires_at,omitempty"`
+
+	// AllowedTools (round 64) is optional: the tool allowlist the owner
+	// grants the new member key, one or more distinct names from the
+	// verdifax-mcp tools (verify_record, verify_feed, get_record,
+	// list_records, read_feed, list_pending_signoffs, get_signoffs,
+	// test_policy, seal_decision, prepare_signoff) and
+	// AllowedToolAccountStop. The server seals it, sorted, in the key's
+	// key.created record and then refuses the key (403) on every route its
+	// tools do not call. Owner powers, lifting a stop and an approver's
+	// sign-off can never be granted. Nil makes the key exactly as before.
+	AllowedTools []string `json:"allowed_tools,omitempty"`
 }
 
 // CreateAccountKeyResponse is a new key with its secret, shown once: the
@@ -153,7 +170,8 @@ func (c *Client) GetAccount(ctx context.Context) (*Account, error) {
 
 // CreateAccountKey creates a member key in the owner key's account. The
 // key takes the account's tier and stays in the account for life. The
-// secret is shown once, so store it immediately.
+// secret is shown once, so store it immediately. An AllowedTools list is
+// checked before sending, and the answer must carry it, sorted.
 func (c *Client) CreateAccountKey(ctx context.Context, req *CreateAccountKeyRequest) (*CreateAccountKeyResponse, error) {
 	if keyErr := c.requireAPIKey(); keyErr != nil {
 		return nil, keyErr
@@ -161,9 +179,20 @@ func (c *Client) CreateAccountKey(ctx context.Context, req *CreateAccountKeyRequ
 	if req == nil || req.Name == "" {
 		return nil, errors.New("verdifax: name is required for CreateAccountKey")
 	}
+	var sealed []string
+	if req.AllowedTools != nil {
+		checked, toolsErr := checkAllowedTools(req.AllowedTools)
+		if toolsErr != nil {
+			return nil, toolsErr
+		}
+		sealed = checked
+	}
 	out := &CreateAccountKeyResponse{}
 	if createErr := c.doRequest(ctx, "POST", accountKeysPath, req, out); createErr != nil {
 		return nil, createErr
+	}
+	if sealed != nil && (out.AllowedTools == nil || !slices.Equal(*out.AllowedTools, sealed)) {
+		return nil, fmt.Errorf("verdifax: the new key's allowed_tools are not the allowlist sent, sorted (%v)", sealed)
 	}
 	return out, nil
 }

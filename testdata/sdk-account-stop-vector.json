@@ -1,0 +1,306 @@
+{
+ "_comment": "Round 64, features 3 and 5: what every SDK signs, sends and reads for an account stop and a member key's tool allowlist (orchestrator internal/artifacts/account_stop.go StopSubject, internal/api/account_stop.go, internal/api/accounts.go readAllowedTools, internal/auth/allowlist.go). The owner's request key signs a stop (account.stopped) or a resume (account.resumed) over the owner-change preimage (verdifax.owner-change-signature.v1, the account, the change, the subject, signed_at and nonce, joined by zero bytes) with the subject: the action, key=<the owner key's id>, for a stop signoffs=<accept or refuse> and webhooks=<continue or pause> (defaults accept and continue), for a resume lifts=<the feed place of the stop it lifts>, and reason_sha256=<the lowercase hex SHA-256 of the reason's UTF-8 bytes, or nothing>, joined by single spaces. A reason is at most 1000 bytes; only its hash is sealed. subject_refuse lists inputs every SDK refuses before signing. A member key's allowlist is one or more distinct names from tools or the stop permission, never a name in never_granted; the server seals it sorted. GET /stats reports a key's allowlist in the X-Verdifax-Allowed-Tools header, comma-separated; no header means no allowlist. feed_kinds are the round 64 feed kinds every SDK lists and a webhook may name; an SDK reading a feed passes any kind it does not know through unchanged. The setting verdifax-stop signs the change setting.verdifax_stop. Every SDK reads this file in a test.",
+ "changes": {
+  "stop": "account.stopped",
+  "resume": "account.resumed"
+ },
+ "setting": {
+  "route": "verdifax-stop",
+  "change": "setting.verdifax_stop"
+ },
+ "subjects": [
+  {
+   "name": "a stop with the default scope and no reason",
+   "action": "stop",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": null,
+   "reason": null,
+   "subject": "stop key=12 signoffs=accept webhooks=continue reason_sha256="
+  },
+  {
+   "name": "a stop that refuses sign-offs and pauses webhooks, with a reason",
+   "action": "stop",
+   "key_id": 12,
+   "signoffs": "refuse",
+   "webhooks": "pause",
+   "lifts_sequence": null,
+   "reason": "incident 42",
+   "subject": "stop key=12 signoffs=refuse webhooks=pause reason_sha256=5a6ed57ca889f0f80653e9b0916eb6fa6c906170ace78bb96337b4b0233bac21"
+  },
+  {
+   "name": "a reason is hashed as its UTF-8 bytes",
+   "action": "stop",
+   "key_id": 3,
+   "signoffs": "accept",
+   "webhooks": "continue",
+   "lifts_sequence": null,
+   "reason": "arr\u00eat d'urgence",
+   "subject": "stop key=3 signoffs=accept webhooks=continue reason_sha256=d0b21f58526f95165830456a48f797f773b7d0e79cd8a997ac94cc4c24b3ca64"
+  },
+  {
+   "name": "a resume names the stop it lifts",
+   "action": "resume",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": 7,
+   "reason": null,
+   "subject": "resume key=12 lifts=7 reason_sha256="
+  },
+  {
+   "name": "a resume with a reason",
+   "action": "resume",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": 41,
+   "reason": "fixed",
+   "subject": "resume key=12 lifts=41 reason_sha256=992a93455c71fedd36ac9bbc439952c041cf61445958472af479269b8d873513"
+  }
+ ],
+ "subject_refuse": [
+  {
+   "name": "an unknown action",
+   "action": "pause",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": null,
+   "reason": null
+  },
+  {
+   "name": "a stop naming a place to lift",
+   "action": "stop",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": 7,
+   "reason": null
+  },
+  {
+   "name": "a resume naming no place",
+   "action": "resume",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": null,
+   "reason": null
+  },
+  {
+   "name": "a resume with a scope",
+   "action": "resume",
+   "key_id": 12,
+   "signoffs": "accept",
+   "webhooks": null,
+   "lifts_sequence": 7,
+   "reason": null
+  },
+  {
+   "name": "key 0",
+   "action": "stop",
+   "key_id": 0,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": null,
+   "reason": null
+  },
+  {
+   "name": "an unknown sign-off scope",
+   "action": "stop",
+   "key_id": 12,
+   "signoffs": "deny",
+   "webhooks": null,
+   "lifts_sequence": null,
+   "reason": null
+  },
+  {
+   "name": "an unknown webhook scope",
+   "action": "stop",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": "stop",
+   "lifts_sequence": null,
+   "reason": null
+  },
+  {
+   "name": "a reason longer than 1000 bytes",
+   "action": "stop",
+   "key_id": 12,
+   "signoffs": null,
+   "webhooks": null,
+   "lifts_sequence": null,
+   "reason": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9"
+  }
+ ],
+ "signatures": {
+  "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "cases": [
+   {
+    "name": "a stop that refuses sign-offs and pauses webhooks, with a reason",
+    "account": "account-7",
+    "change": "account.stopped",
+    "subject": "stop key=12 signoffs=refuse webhooks=pause reason_sha256=5a6ed57ca889f0f80653e9b0916eb6fa6c906170ace78bb96337b4b0233bac21",
+    "signed_at": "2026-11-18T12:00:00Z",
+    "nonce": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "preimage_hex": "76657264696661782e6f776e65722d6368616e67652d7369676e61747572652e7631006163636f756e742d37006163636f756e742e73746f707065640073746f70206b65793d3132207369676e6f6666733d72656675736520776562686f6f6b733d706175736520726561736f6e5f7368613235363d3561366564353763613838396630663830363533653962303931366562366661366339303631373061636537386262393633333762346230323333626163323100323032362d31312d31385431323a30303a30305a003066306630663066306630663066306630663066306630663066306630663066",
+    "signature": "F9wgHu7zKXAxfuOaP48hN91xAXMv5pdXJg1jtS3Pv7An7Yadw8Bs59wibDisaUqWaaHkTKhwgXtcOVdx4FmDCA=="
+   },
+   {
+    "name": "a resume names the stop it lifts",
+    "account": "account-7",
+    "change": "account.resumed",
+    "subject": "resume key=12 lifts=7 reason_sha256=",
+    "signed_at": "2026-11-18T12:00:00Z",
+    "nonce": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "preimage_hex": "76657264696661782e6f776e65722d6368616e67652d7369676e61747572652e7631006163636f756e742d37006163636f756e742e726573756d656400726573756d65206b65793d3132206c696674733d3720726561736f6e5f7368613235363d00323032362d31312d31385431323a30303a30305a003066306630663066306630663066306630663066306630663066306630663066",
+    "signature": "YSlokNQzST768tuZnlEtGsWInvzCNXWMv3momcnaj+znyb3i5wCPoBWPz81vFjrcMojkHkh026MGfArGlhajAg=="
+   }
+  ]
+ },
+ "tools": [
+  "verify_record",
+  "verify_feed",
+  "get_record",
+  "list_records",
+  "read_feed",
+  "list_pending_signoffs",
+  "get_signoffs",
+  "test_policy",
+  "seal_decision",
+  "prepare_signoff"
+ ],
+ "stop_permission": "account_stop",
+ "never_granted": [
+  "account_resume",
+  "resume",
+  "owner",
+  "manage_keys",
+  "manage_policy",
+  "approver",
+  "sign_off",
+  "signoff"
+ ],
+ "allowlists": {
+  "accept": [
+   {
+    "allowed_tools": [
+     "seal_decision",
+     "get_record"
+    ],
+    "sealed": [
+     "get_record",
+     "seal_decision"
+    ]
+   },
+   {
+    "allowed_tools": [
+     "account_stop"
+    ],
+    "sealed": [
+     "account_stop"
+    ]
+   },
+   {
+    "allowed_tools": [
+     "verify_record",
+     "verify_feed",
+     "get_record",
+     "list_records",
+     "read_feed",
+     "list_pending_signoffs",
+     "get_signoffs",
+     "test_policy",
+     "seal_decision",
+     "prepare_signoff",
+     "account_stop"
+    ],
+    "sealed": [
+     "account_stop",
+     "get_record",
+     "get_signoffs",
+     "list_pending_signoffs",
+     "list_records",
+     "prepare_signoff",
+     "read_feed",
+     "seal_decision",
+     "test_policy",
+     "verify_feed",
+     "verify_record"
+    ]
+   }
+  ],
+  "refuse": [
+   {
+    "name": "an empty list",
+    "allowed_tools": []
+   },
+   {
+    "name": "a name twice",
+    "allowed_tools": [
+     "get_record",
+     "get_record"
+    ]
+   },
+   {
+    "name": "an owner power",
+    "allowed_tools": [
+     "owner"
+    ]
+   },
+   {
+    "name": "lifting a stop",
+    "allowed_tools": [
+     "account_resume"
+    ]
+   },
+   {
+    "name": "an approver key",
+    "allowed_tools": [
+     "sign_off"
+    ]
+   },
+   {
+    "name": "an unknown tool",
+    "allowed_tools": [
+     "delete_record"
+    ]
+   },
+   {
+    "name": "a name in capitals",
+    "allowed_tools": [
+     "GET_RECORD"
+    ]
+   }
+  ]
+ },
+ "allowed_tools_header": [
+  {
+   "header": "get_record,seal_decision",
+   "allowed_tools": [
+    "get_record",
+    "seal_decision"
+   ]
+  },
+  {
+   "header": "account_stop",
+   "allowed_tools": [
+    "account_stop"
+   ]
+  },
+  {
+   "header": null,
+   "allowed_tools": null
+  }
+ ],
+ "feed_kinds": [
+  "account.stopped",
+  "account.resumed",
+  "setup.changed",
+  "review.due",
+  "signoff.target_passed",
+  "signoff.refused"
+ ]
+}

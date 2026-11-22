@@ -1,0 +1,894 @@
+{
+ "_comment": "Round 64, design 02 (b), rule in force: what every SDK's rule_in_force helper answers. document is a record bundle (its epa section's account_policy_gate and policy_gate) or a receipt answer (its receipt_context's account_policy and policy, and an attestation_gap_receipt when there is one); policy_history is null or a policy history as GET /policies/history or GET /account/policies/history returns it, oldest first. The answer lists each decision that names the policy change it was made under, the account's first: policy (account, key, or empty when nothing says which), activation_hash, policy_hash, fired_rule_id, outcome, found_by (record, receipt_context, receipt or policy_history), and sequence, chain_id and activated_at from the history when it holds that change (null otherwise). A refusal for missing fields (attestation_gap_receipt) gives one decision, outcome attestation_gap and fired_rule_id empty: the change it seals (round 64), else the change its receipt context names for the same policy, else, with a history, the last verdifax.policy.activation.v1 change activated at or before its gap_clock, compared to the nanosecond as instants, whose policy must be the refusal's; other history items are passed over. A sealed change its context names differently for the same policy, a change that was not the one in force at the clock when the history holds it, a needed history left out, and a document of neither shape are refused (expected_error). This mirrors verdifax-verify's gapcheck.go; the verifier stays the check. Every SDK reads this file in a test.",
+ "cases": [
+  {
+   "name": "a record decided under the key's policy",
+   "document": {
+    "kind": "verdifax.bundle",
+    "run_id": 42,
+    "epa": {
+     "attested": false,
+     "policy_gate": {
+      "policy_id": "p",
+      "policy_name": "p",
+      "policy_version": "1",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "allow",
+      "fired_rule_id": "r1",
+      "decision_reason_code": "",
+      "evaluation_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source": "customer",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected": [
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "r1",
+     "outcome": "allow",
+     "found_by": "record",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    }
+   ]
+  },
+  {
+   "name": "a record decided under both policies lists the account's first",
+   "document": {
+    "kind": "verdifax.bundle",
+    "run_id": 42,
+    "epa": {
+     "attested": false,
+     "policy_gate": {
+      "policy_id": "p",
+      "policy_name": "p",
+      "policy_version": "1",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "allow",
+      "fired_rule_id": "r1",
+      "decision_reason_code": "",
+      "evaluation_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source": "customer",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+     },
+     "account_policy_gate": {
+      "policy_id": "p",
+      "policy_name": "p",
+      "policy_version": "1",
+      "policy_hash": "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+      "outcome": "allow",
+      "fired_rule_id": "acc-r",
+      "decision_reason_code": "",
+      "evaluation_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source": "customer",
+      "activation_hash": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+      "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected": [
+    {
+     "policy": "account",
+     "activation_hash": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+     "policy_hash": "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+     "fired_rule_id": "acc-r",
+     "outcome": "allow",
+     "found_by": "record",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    },
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "r1",
+     "outcome": "allow",
+     "found_by": "record",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    }
+   ]
+  },
+  {
+   "name": "a record under the built-in policy names no change",
+   "document": {
+    "kind": "verdifax.bundle",
+    "run_id": 42,
+    "epa": {
+     "attested": false,
+     "policy_gate": {
+      "policy_id": "p",
+      "policy_name": "p",
+      "policy_version": "1",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "allow",
+      "fired_rule_id": "r1",
+      "decision_reason_code": "",
+      "evaluation_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source": "customer"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected": []
+  },
+  {
+   "name": "a refusal's receipt context names each decision",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "deny_receipt": {
+     "version": "vfa.deny_receipt.v1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "r1",
+     "hash": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     },
+     "policy": {
+      "source": "customer",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "deny",
+      "fired_rule_id": "r1",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+     },
+     "account_policy": {
+      "source": "customer",
+      "policy_hash": "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+      "outcome": "allow",
+      "fired_rule_id": "acc-r",
+      "activation_hash": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected": [
+    {
+     "policy": "account",
+     "activation_hash": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+     "policy_hash": "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+     "fired_rule_id": "acc-r",
+     "outcome": "allow",
+     "found_by": "receipt_context",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    },
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "r1",
+     "outcome": "deny",
+     "found_by": "receipt_context",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    }
+   ]
+  },
+  {
+   "name": "a history fills in the change's place, chain and time; a change it does not hold stays unnamed",
+   "document": {
+    "kind": "verdifax.bundle",
+    "run_id": 42,
+    "epa": {
+     "attested": false,
+     "policy_gate": {
+      "policy_id": "p",
+      "policy_name": "p",
+      "policy_version": "1",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "allow",
+      "fired_rule_id": "r1",
+      "decision_reason_code": "",
+      "evaluation_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source": "customer",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+     },
+     "account_policy_gate": {
+      "policy_id": "p",
+      "policy_name": "p",
+      "policy_version": "1",
+      "policy_hash": "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+      "outcome": "allow",
+      "fired_rule_id": "acc-r",
+      "decision_reason_code": "",
+      "evaluation_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source": "customer",
+      "activation_hash": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+      "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected": [
+    {
+     "policy": "account",
+     "activation_hash": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+     "policy_hash": "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+     "fired_rule_id": "acc-r",
+     "outcome": "allow",
+     "found_by": "record",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    },
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "r1",
+     "outcome": "allow",
+     "found_by": "record",
+     "sequence": 1,
+     "chain_id": "api-key-7",
+     "activated_at": "2026-11-10T12:00:00Z"
+    }
+   ]
+  },
+  {
+   "name": "a round 64 refusal for missing fields seals its change",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T12:30:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     },
+     "policy": {
+      "source": "customer",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "deny",
+      "fired_rule_id": "r1",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected": [
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "",
+     "outcome": "attestation_gap",
+     "found_by": "receipt",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    }
+   ]
+  },
+  {
+   "name": "a sealed change its receipt context does not name for the same policy is refused",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T12:30:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     },
+     "policy": {
+      "source": "customer",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "deny",
+      "fired_rule_id": "r1",
+      "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected_error": true
+  },
+  {
+   "name": "an earlier refusal for missing fields takes its change from its receipt context",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T12:30:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     },
+     "policy": {
+      "source": "customer",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "deny",
+      "fired_rule_id": "r1",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected": [
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "",
+     "outcome": "attestation_gap",
+     "found_by": "receipt_context",
+     "sequence": null,
+     "chain_id": null,
+     "activated_at": null
+    }
+   ]
+  },
+  {
+   "name": "a refusal that names no change needs the policy history",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T12:30:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": null,
+   "expected_error": true
+  },
+  {
+   "name": "with the history, the change in force at the refusal's clock",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T12:30:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected": [
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "",
+     "outcome": "attestation_gap",
+     "found_by": "policy_history",
+     "sequence": 1,
+     "chain_id": "api-key-7",
+     "activated_at": "2026-11-10T12:00:00Z"
+    }
+   ]
+  },
+  {
+   "name": "a change activated a nanosecond after the clock is not yet in force",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T13:00:00.000000001Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected": [
+    {
+     "policy": "key",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "",
+     "outcome": "attestation_gap",
+     "found_by": "policy_history",
+     "sequence": 1,
+     "chain_id": "api-key-7",
+     "activated_at": "2026-11-10T12:00:00Z"
+    }
+   ]
+  },
+  {
+   "name": "a change activated at the clock is in force; its policy must be the refusal's",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T13:00:00.000000002Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected_error": true
+  },
+  {
+   "name": "a time with an offset is compared as the instant it names",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T14:00:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected": [
+    {
+     "policy": "key",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "fired_rule_id": "",
+     "outcome": "attestation_gap",
+     "found_by": "policy_history",
+     "sequence": 3,
+     "chain_id": "api-key-7",
+     "activated_at": "2026-11-10T15:00:00+01:00"
+    }
+   ]
+  },
+  {
+   "name": "a clock before every change has no change in force",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T11:00:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected_error": true
+  },
+  {
+   "name": "a sealed change that was not the one in force at the clock is refused",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "2026-11-10T13:30:00Z",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     },
+     "policy": {
+      "source": "customer",
+      "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "outcome": "deny",
+      "fired_rule_id": "r1",
+      "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected_error": true
+  },
+  {
+   "name": "a clock that is not a time is refused when the history is needed",
+   "document": {
+    "ok": true,
+    "run_id": 42,
+    "attestation_gap_receipt": {
+     "decision_reason_code": "ATTESTATION_GAP",
+     "envelope_id": "env-1",
+     "gap_clock": "yesterday",
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "version": "vfa.attestation_gap_receipt.v1",
+     "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "receipt_context": {
+     "request": {
+      "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "program_id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "route_id": "r",
+      "registry_record_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+     }
+    }
+   },
+   "policy_history": [
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 1,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T12:00:00Z",
+     "activation_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+     "format": "verdifax.restore-gap.v1",
+     "chain": "policy",
+     "lost_from": 2,
+     "lost_to": 2
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 2,
+     "policy_hash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T13:00:00.000000002Z",
+     "activation_hash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+     "format": "verdifax.policy.activation.v1",
+     "chain_id": "api-key-7",
+     "sequence": 3,
+     "policy_hash": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "document_hash": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+     "activated_at": "2026-11-10T15:00:00+01:00",
+     "activation_hash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    }
+   ],
+   "expected_error": true
+  },
+  {
+   "name": "a document that is neither a record nor a receipt is refused",
+   "document": {
+    "ok": true,
+    "run_id": 42
+   },
+   "policy_history": null,
+   "expected_error": true
+  }
+ ]
+}

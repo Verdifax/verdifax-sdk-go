@@ -21,7 +21,7 @@ const (
 	// seconds, and a client that gave up then reported an error for a run
 	// the server went on to seal.
 	DefaultTimeout = 90 * time.Second
-	UserAgent      = "verdifax-sdk-go/1.16.0"
+	UserAgent      = "verdifax-sdk-go/1.17.0"
 
 	// HeaderAPIKey is the canonical header name for API-key auth.
 	// Verdifax uses this rather than Authorization: Bearer because
@@ -228,7 +228,7 @@ func (c *Client) doRequestWith(ctx context.Context, httpClient *http.Client, met
 			return &NotFoundError{Path: path, Message: errMsg}
 		default:
 			return &APIError{Status: resp.StatusCode, Path: path, Message: errMsg, RecordHash: envelope.RecordHash,
-				AivpTraceText: envelope.AivpTraceText}
+				AivpTraceText: envelope.AivpTraceText, body: string(respBytes)}
 		}
 	}
 

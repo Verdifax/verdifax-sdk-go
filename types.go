@@ -82,8 +82,12 @@ type ExecuteRequest struct {
 	// fields: actor_id, actor_role, actor_signature,
 	// authorization_policy, decision_kind, decision_note,
 	// decision_result, model_name, model_provider, model_temperature,
-	// model_version and prompt_hash. The client derives its attested
-	// flag from the fields provided.
+	// model_version and prompt_hash, and (round 64) client_name and
+	// client_version, the AI assistant's own declared name and version,
+	// sealed as declared, not verified: each at most 128 bytes of printable
+	// ASCII with no leading or trailing space, which the SDK checks before
+	// sending. The client derives its attested flag from the fields
+	// provided.
 	//
 	// The server refuses a field it does not define, in this block, in
 	// the four blocks below and in the request itself, with a 400

@@ -37,7 +37,8 @@ const (
 	runDeletedChange   = "run.deleted"
 )
 
-// The owner's two settings, as SetAccountSetting names them. While
+// The owner's first two settings, as SetAccountSetting names them (the
+// third, AccountSettingVerdifaxStop, is with the account stop). While
 // AccountSettingOwnerReplacement is blocked, Verdifax cannot replace,
 // revoke or start replacing the account's owner key, and from verifier
 // v0.35.0's server release on it cannot clear the owner key's request key
@@ -80,6 +81,7 @@ const (
 var settingChanges = map[string]string{
 	AccountSettingOwnerReplacement: "setting.owner_replacement",
 	AccountSettingVerdifaxDeletion: "setting.verdifax_deletion",
+	AccountSettingVerdifaxStop:     "setting.verdifax_stop",
 }
 
 // accountLabelPattern is an account number as records seal it.
@@ -357,9 +359,11 @@ type OwnerChangeOptions struct {
 // OwnerChangePreimage returns the bytes the owner key's request key signs
 // for a change the owner decides: verdifax.owner-change-signature.v1,
 // account (account-N), change, subject, signedAt and nonce, joined by
-// single zero bytes. For a setting the change is setting.owner_replacement
-// or setting.verdifax_deletion and the subject is the value; for a
-// deletion the change is run.deleted and the subject is RUN_ID:RECORD_HASH.
+// single zero bytes. For a setting the change is setting.owner_replacement,
+// setting.verdifax_deletion or setting.verdifax_stop and the subject is the
+// value; for a deletion the change is run.deleted and the subject is
+// RUN_ID:RECORD_HASH; for a stop or a resume the change is account.stopped
+// or account.resumed and the subject is AccountStopSubject's.
 func OwnerChangePreimage(account, change, subject, signedAt, nonce string) []byte {
 	return []byte(strings.Join([]string{ownerChangeForm, account, change, subject, signedAt, nonce}, "\x00"))
 }
@@ -420,9 +424,13 @@ func sealsOwnerSignature(got, sent *OwnerSignature, publicKey string) bool {
 }
 
 // SetAccountSetting sets one of the owner's blocks on Verdifax with PUT
-// /account/settings/{setting}: setting is AccountSettingOwnerReplacement
-// or AccountSettingVerdifaxDeletion, and value is SettingAllowed or
-// SettingBlocked. Needs the owner key.
+// /account/settings/{setting}: setting is AccountSettingOwnerReplacement,
+// AccountSettingVerdifaxDeletion or AccountSettingVerdifaxStop, and value
+// is SettingAllowed or SettingBlocked. Needs the owner key. While
+// AccountSettingVerdifaxStop is blocked, Verdifax cannot place its own
+// stop on the account (AdminStopAccount); the server accepts that setting
+// only while its round 64 release setting is on, and GetAccountStop
+// reports it.
 //
 // The change is signed with the client's SigningKey, which must be the
 // owner key's registered request key (RegisterAccountRequestKey), over
@@ -440,7 +448,8 @@ func (c *Client) SetAccountSetting(ctx context.Context, setting, value string, o
 	}
 	change, known := settingChanges[setting]
 	if !known {
-		return nil, fmt.Errorf("verdifax: setting must be %q or %q (got %q)", AccountSettingOwnerReplacement, AccountSettingVerdifaxDeletion, setting)
+		return nil, fmt.Errorf("verdifax: setting must be %q, %q or %q (got %q)", AccountSettingOwnerReplacement, AccountSettingVerdifaxDeletion,
+			AccountSettingVerdifaxStop, setting)
 	}
 	if value != SettingAllowed && value != SettingBlocked {
 		return nil, fmt.Errorf("verdifax: value must be %q or %q (got %q)", SettingAllowed, SettingBlocked, value)

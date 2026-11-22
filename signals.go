@@ -107,13 +107,37 @@ const (
 	// owner or by Verdifax; the entry is the RunDeletion tombstone, which
 	// stays in the feed.
 	SignalRunDeleted = "run.deleted"
+
+	// The round 64 kinds, each emitted only for an account that turned its
+	// feature on, and only by a server whose round 64 release setting is
+	// on. Reading one needs verdifax-verify v0.38.0.
+	//
+	// SignalAccountStopped and SignalAccountResumed: the owner or Verdifax
+	// placed, or lifted, its own stop on the account; the entry is an
+	// AccountStopRecord.
+	SignalAccountStopped = "account.stopped"
+	SignalAccountResumed = "account.resumed"
+	// SignalSetupChanged: a run's setup facts differ from the last ones the
+	// policy's setup watch saw; the entry is a SetupChangeRecord.
+	SignalSetupChanged = "setup.changed"
+	// SignalReviewDue: the review date an activation's policy declares
+	// passed while it was in force; the entry is a PolicyReviewDueRecord.
+	SignalReviewDue = "review.due"
+	// SignalSignOffTargetPassed: the response target the policy declares
+	// passed with no sign-off of the kind it compares.
+	SignalSignOffTargetPassed = "signoff.target_passed"
+	// SignalSignOffRefused: a sign-off refused while a stop whose scope
+	// refuses sign-offs stood; the entry is a SignOffRefusalRecord. It is
+	// not a sign-off, and PendingSignOffs never counts it as one.
+	SignalSignOffRefused = "signoff.refused"
 )
 
 // signalKinds is every kind the feed carries, in the server's order.
 var signalKinds = []string{SignalRunRefused, SignalRunHalted, SignalRunFailed, SignalPolicyChanged,
 	SignalSignOffRecorded, SignalApproverRegistered, SignalApproverRevoked, SignalKeyCreated, SignalKeyRevoked,
 	SignalRunPublished, SignalRunUnpublished, SignalChainGap, SignalRunSealed, SignalChainInterrupted,
-	SignalAccountChanged, SignalRunDeleted}
+	SignalAccountChanged, SignalRunDeleted, SignalAccountStopped, SignalAccountResumed, SignalSetupChanged, SignalReviewDue,
+	SignalSignOffTargetPassed, SignalSignOffRefused}
 
 // SignalEvent is one event of the feed: a CloudEvent whose data is the
 // Verdifax event. A webhook delivers the same envelope.
