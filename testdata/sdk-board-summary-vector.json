@@ -8,7 +8,7 @@
    "account": "account-7",
    "from": "2026-11-01T00:00:00Z",
    "to": "2026-11-02T00:00:00Z",
-   "counting_rules": "verdifax.period-summary-counting.v1",
+   "counting_rules": "verdifax.period-summary-counting.v2",
    "head_sequence": 30,
    "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
    "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
@@ -44,6 +44,11 @@
      "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
     },
     {
+     "name": "account.stopped_seconds.by:owner.unsigned",
+     "value": 3600,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
      "name": "account.stopped_seconds.by:verdifax_admin",
      "value": 3600,
      "events_digest": "f3ac2da5580ac62dc6789bf8642d15ec89393c8f6f22d67269f155c19c447907"
@@ -55,6 +60,11 @@
     },
     {
      "name": "account.stops.by:owner",
+     "value": 1,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
+     "name": "account.stops.by:owner.unsigned",
      "value": 1,
      "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
     },
@@ -415,11 +425,11 @@
     }
    ],
    "stated_at": "2026-11-02T01:00:07.123456789Z",
-   "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+   "summary_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
    "anchor": {
     "kind": "verdifax.receipt_anchor.v3",
     "receipt_kind": "period_summary",
-    "receipt_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+    "receipt_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
     "backend": "rekor",
     "log_entry_id": "3772058606",
     "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
@@ -468,7 +478,7 @@
     "log_entry_id": "3772058606",
     "on_public_log": true,
     "stated_at": "2026-11-02T01:00:07.123456789Z",
-    "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+    "summary_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
     "to": "2026-11-02T00:00:00Z"
    }
   ]
@@ -491,7 +501,7 @@
   "account": "account-7",
   "from": "2026-11-01T00:00:00Z",
   "to": "2026-11-02T00:00:00Z",
-  "counting_rules": "verdifax.period-summary-counting.v1",
+  "counting_rules": "verdifax.period-summary-counting.v2",
   "request_target": 900,
   "head_sequence": 30,
   "head": {
@@ -717,7 +727,7 @@
    "account": "account-7",
    "from": "2026-11-01T00:00:00Z",
    "to": "2026-11-02T00:00:00Z",
-   "counting_rules": "verdifax.period-summary-counting.v1",
+   "counting_rules": "verdifax.period-summary-counting.v2",
    "head_sequence": 30,
    "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
    "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
@@ -753,6 +763,11 @@
      "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
     },
     {
+     "name": "account.stopped_seconds.by:owner.unsigned",
+     "value": 3600,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
      "name": "account.stopped_seconds.by:verdifax_admin",
      "value": 3600,
      "events_digest": "f3ac2da5580ac62dc6789bf8642d15ec89393c8f6f22d67269f155c19c447907"
@@ -764,6 +779,11 @@
     },
     {
      "name": "account.stops.by:owner",
+     "value": 1,
+     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+    },
+    {
+     "name": "account.stops.by:owner.unsigned",
      "value": 1,
      "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
     },
@@ -1124,11 +1144,11 @@
     }
    ],
    "stated_at": "2026-11-02T01:00:07.123456789Z",
-   "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+   "summary_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
    "anchor": {
     "kind": "verdifax.receipt_anchor.v3",
     "receipt_kind": "period_summary",
-    "receipt_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+    "receipt_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
     "backend": "rekor",
     "log_entry_id": "3772058606",
     "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
@@ -1191,7 +1211,7 @@
   "account": "account-7",
   "from": "2026-11-01T00:00:00Z",
   "to": "2026-11-02T00:00:00Z",
-  "counting_rules": "verdifax.period-summary-counting.v1",
+  "counting_rules": "verdifax.period-summary-counting.v2",
   "head_sequence": 30,
   "head_hash": "000000000000000000000000000000000000000000000000000000000000001e",
   "head_statement_hash": "9d1ffdf1c1331170c6222d55a62382bdd6129e92d06d37ddffe6f507890afd57",
@@ -1227,6 +1247,11 @@
     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
    },
    {
+    "name": "account.stopped_seconds.by:owner.unsigned",
+    "value": 3600,
+    "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+   },
+   {
     "name": "account.stopped_seconds.by:verdifax_admin",
     "value": 3600,
     "events_digest": "f3ac2da5580ac62dc6789bf8642d15ec89393c8f6f22d67269f155c19c447907"
@@ -1238,6 +1263,11 @@
    },
    {
     "name": "account.stops.by:owner",
+    "value": 1,
+    "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
+   },
+   {
+    "name": "account.stops.by:owner.unsigned",
     "value": 1,
     "events_digest": "e2ce316efebe2ee279835f3f5af5e385e6db64c2a0693b5acbda99802ce2bbf4"
    },
@@ -1598,11 +1628,11 @@
    }
   ],
   "stated_at": "2026-11-02T01:00:07.123456789Z",
-  "summary_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+  "summary_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
   "anchor": {
    "kind": "verdifax.receipt_anchor.v3",
    "receipt_kind": "period_summary",
-   "receipt_hash": "08a6df0296015d8205850bbc5bd7478127a0e9eac388d9f61eeb4c6d8e6e6384",
+   "receipt_hash": "5dce9b7d0c6966f3e9710603f0b687843f085ce6adf2a2a09e09b08c82a6a29a",
    "backend": "rekor",
    "log_entry_id": "3772058606",
    "log_id": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
