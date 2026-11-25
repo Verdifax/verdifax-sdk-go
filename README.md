@@ -484,6 +484,8 @@ While a stop whose scope refuses sign-offs stands, `SignOff` returns a `*SignOff
 
 The owner's third setting, `AccountSettingVerdifaxStop` (`verdifax-stop`), blocks Verdifax's own stop while `blocked`; `SetAccountSetting` signs it as `setting.verdifax_stop`, and `GetAccountStop` reports it beside the stops standing and the runs in progress now. The server accepts a stop, and this setting, only while its round 64 release setting is on; lifting a stop always works.
 
+The fourth setting, `AccountSettingOwnerReads` (`owner-reads`), decides whether the owner key reads the account's records. While it is `allowed`, the owner key opens the record, receipts and reports of every run of the account; it is `blocked` until the owner allows it, and the change is signed as `setting.owner_reads` and sealed as the others are.
+
 ### Member key tool allowlist
 
 `CreateAccountKeyRequest.AllowedTools` grants a new member key an allowlist: one or more distinct names from the verdifax-mcp tools (`verify_record`, `verify_feed`, `get_record`, `list_records`, `read_feed`, `list_pending_signoffs`, `get_signoffs`, `test_policy`, `seal_decision`, `prepare_signoff`) and `account_stop`. The server seals it, sorted, in the key's `key.created` record, and refuses the key (403) on every route its tools do not call, apart from the key check (`GET /stats`) and the key's own request-key registration (`POST /keys/request-key`). Owner powers, lifting a stop and an approver's sign-off can never be granted, and the SDK refuses such a name, an unknown one or a repeat before sending. `CreateAccountKey` checks that the answer carries the allowlist sorted. `GetAllowedTools` reads a key's own allowlist from `GET /stats`, nil when it has none.

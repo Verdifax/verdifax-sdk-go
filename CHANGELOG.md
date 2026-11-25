@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.18.0
+
+The owner-reads setting.
+
+- `AccountSettingOwnerReads` (`owner-reads`) with `SetAccountSetting`: while `SettingAllowed`, the owner key opens the record, receipts and reports of every run of its account; it is `SettingBlocked` until the owner allows it, so every account reads as it did. The change is signed by the owner key's request key over `setting.owner_reads` and sealed in the account's feed; `verdifax-verify` v0.40.0 reads it. `GetAccount` reports it as `OwnerReads`. Needs the server that accepts it.
+- The user agent is `verdifax-sdk-go/1.18.0`.
+
 ## 1.17.0
 
 Round 64: account stop, data-use declarations, a member key's tool allowlist, the new feed kinds, the board summary, the response-time report and the rule in force. Every addition is new; nothing that worked in 1.16.0 changes. Records using them need `verdifax-verify` v0.38.0, and the server accepts them only while its round 64 release setting is on.

@@ -635,6 +635,23 @@ func TestSetAccountSettingSignsTheVerdifaxStopSetting(t *testing.T) {
 	}
 }
 
+// The owner-reads setting signs setting.owner_reads, and GetAccount reads it.
+func TestSetAccountSettingSignsTheOwnerReadsSetting(t *testing.T) {
+	record := strings.Replace(accountChangeAnswer, "setting.verdifax_deletion", "setting.owner_reads", 1)
+	c, seen, _ := ownerEchoServer(t, "PUT /account/settings/owner-reads", settingWrapper, record, nil)
+	if _, err := c.SetAccountSetting(context.Background(), AccountSettingOwnerReads, SettingBlocked, nil); err != nil {
+		t.Fatal(err)
+	}
+	_, sig := ownerBody(t, (*seen)[1].Body, "owner_signature,value")
+	if !ownerSignatureVerifies(t, sig, "account-7", "setting.owner_reads", "blocked") {
+		t.Fatal("the setting is not signed as setting.owner_reads")
+	}
+	var a Account
+	if err := json.Unmarshal([]byte(`{"owner_reads":"allowed"}`), &a); err != nil || a.OwnerReads != SettingAllowed {
+		t.Fatalf("owner_reads reads %q (%v)", a.OwnerReads, err)
+	}
+}
+
 // refusalServer answers a sign-off with HTTP 409 and body, built from what
 // was sent by fill.
 func refusalServer(t *testing.T, fill func(signOffBody) string) *Client {

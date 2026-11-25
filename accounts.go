@@ -50,6 +50,9 @@ type Account struct {
 	// SetAccountSetting and each change sealed in the account's feed.
 	OwnerReplacement string `json:"owner_replacement,omitempty"`
 	VerdifaxDeletion string `json:"verdifax_deletion,omitempty"`
+	// OwnerReads is whether the owner key reads the account's records,
+	// SettingAllowed or SettingBlocked, set with SetAccountSetting.
+	OwnerReads string `json:"owner_reads,omitempty"`
 
 	// MemberKeys and OwnerKeys count the account's keys that are not
 	// revoked.
